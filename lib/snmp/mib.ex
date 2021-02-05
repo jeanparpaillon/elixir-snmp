@@ -23,50 +23,43 @@ defmodule Snmp.Mib do
   )
 
   @doc false
-  defmacro __using__(opts) do
-    mib = Keyword.get_lazy(opts, :name, fn -> raise "Missing option :name for Snmp.Mib" end)
-    reqs = Keyword.get(opts, :requires, [])
-    Enum.each(reqs, &({:ok, _} = compile_mib(&1, [])))
+  defmacro __using__(path: src) when is_binary(src) do
+    basename = Path.basename(src, ".mib")
 
-    {:ok, bin_path} = Snmp.Mib.compile_mib(mib, [{:module, __CALLER__.module}])
-    {:ok, mib} = :snmpc_misc.read_mib(bin_path)
+    dest = Path.join([Mix.Project.app_path(), "priv", "mibs", basename <> ".bin"])
+    :ok = File.mkdir_p!(Path.dirname(dest))
+    opts = [{:module, __CALLER__.module}]
+    {:ok, _dest} = compile_mib(src, dest, opts)
+    {:ok, mib} = :snmpc_misc.read_mib('#{dest}')
 
-    q_mib = Macro.escape(mib)
+    IO.inspect(mib, label: "MIB")
 
-    quote do
-      require Record
+    [
+      quote do
+        require Record
 
-      @mib unquote(q_mib)
-      @varfuns []
-      @tablefuns []
+        @external_resource unquote(Macro.escape(src))
+        @mibname unquote(basename)
 
-      Snmp.Mib.include(unquote(mib))
+        Module.register_attribute(__MODULE__, :varfuns, accumulate: true)
+        Module.register_attribute(__MODULE__, :tablefuns, accumulate: true)
+        Module.register_attribute(__MODULE__, :oids, accumulate: true)
+        Module.register_attribute(__MODULE__, :range, accumulate: true)
+        Module.register_attribute(__MODULE__, :default, accumulate: true)
+        Module.register_attribute(__MODULE__, :enums, accumulate: true)
+
+        @before_compile Snmp.Mib
+      end
+    ] ++ Enum.map(mib(mib, :asn1_types), &parse_asn1_type/1)
+  end
+
+  defmacro __before_compile__(env) do
+    for enum <- Module.get_attribute(env.module, :enums) do
+      gen_enum(enum, env)
     end
   end
 
-  defmacro include(mib) do
-      mib
-      |> mib(:asn1_types)
-      |> Enum.reduce([], fn
-        asn1_type(imported: false, aliasname: name, assocList: [enums: enums]), acc
-        when enums != [] ->
-          [mib_enum(Module.concat([__CALLER__.module, name]), enums) | acc]
-
-        _type, acc ->
-          acc
-      end)
-  end
-
-  def compile_mib(mib, opts) do
-    project = Mix.Project.config()
-    mib_src = Path.join(["mibs", mib <> ".mib"])
-    mib_dest = Path.join([Mix.Project.app_path(project), "priv", "mibs", mib <> ".bin"])
-    do_compile_mib(mib_src, mib_dest, opts, Mix.Utils.stale?([mib_src], [mib_dest]))
-  end
-
-  def do_compile_mib(_src, dest, _opts, false), do: {:ok, dest}
-
-  def do_compile_mib(src, dest, opts, true) do
+  defp compile_mib(src, dest, opts) do
     project = Mix.Project.config()
 
     mib_includes =
@@ -82,13 +75,23 @@ defmodule Snmp.Mib do
       :no_defs | opts
     ]
 
+    src = Path.expand(src)
     :snmpc.compile('#{src}', opts)
   end
 
-  defp mib_enum(name, enums) do
+  defp parse_asn1_type(asn1_type(imported: false, aliasname: name, assocList: [enums: enums])) do
     quote do
-      defmodule unquote(name) do
-        use Snmp.Mib.TextualConvention, mapping: unquote(enums)
+      @enums {unquote(name), unquote(enums)}
+    end
+  end
+
+  defp parse_asn1_type(_), do: []
+
+  defp gen_enum({name, values}, env) do
+    quote do
+      defmodule unquote(Module.concat(env.module, name)) do
+        @moduledoc false
+        use Snmp.Mib.TextualConvention, mapping: unquote(values)
       end
     end
   end
