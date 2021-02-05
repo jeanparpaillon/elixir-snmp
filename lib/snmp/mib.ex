@@ -50,13 +50,21 @@ defmodule Snmp.Mib do
 
         @before_compile Snmp.Mib
       end
-    ] ++ Enum.map(mib(mib, :asn1_types), &parse_asn1_type/1)
+    ] ++
+      Enum.map(mib(mib, :asn1_types), &parse_asn1_type/1) ++
+      Enum.map(mib(mib, :mes), &parse_me/1)
   end
 
   defmacro __before_compile__(env) do
     for enum <- Module.get_attribute(env.module, :enums) do
       gen_enum(enum, env)
-    end
+    end ++
+      for oid <- Module.get_attribute(env.module, :oids) do
+        gen_oid(oid)
+      end ++
+      for oid <- Module.get_attribute(env.module, :oids) do
+        gen_oname(oid)
+      end ++ [gen_oids(Module.get_attribute(env.module, :oids), env)]
   end
 
   defp compile_mib(src, dest, opts) do
@@ -87,12 +95,44 @@ defmodule Snmp.Mib do
 
   defp parse_asn1_type(_), do: []
 
+  defp parse_me(me(oid: oid, aliasname: name)) do
+    quote do
+      @oids {unquote(oid), unquote(name)}
+    end
+  end
+
+  defp parse_me(_), do: []
+
   defp gen_enum({name, values}, env) do
     quote do
       defmodule unquote(Module.concat(env.module, name)) do
         @moduledoc false
         use Snmp.Mib.TextualConvention, mapping: unquote(values)
       end
+    end
+  end
+
+  defp gen_oid({oid, name}) do
+    quote do
+      def __oid__(unquote(name)), do: unquote(oid)
+    end
+  end
+
+  defp gen_oname({oid, name}) do
+    quote do
+      def __oname__(unquote(oid)), do: unquote(name)
+    end
+  end
+
+  defp gen_oids(oids, env) do
+    mapping =
+      oids
+      |> Macro.expand(env)
+      |> Enum.reduce(%{}, fn {oid, name}, acc -> Map.put(acc, name, oid) end)
+      |> Macro.escape()
+
+    quote do
+      def __oids__, do: unquote(mapping)
     end
   end
 end
