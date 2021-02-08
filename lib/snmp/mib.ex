@@ -69,6 +69,7 @@ defmodule Snmp.Mib do
         Module.register_attribute(__MODULE__, :default, accumulate: true)
         Module.register_attribute(__MODULE__, :enum, accumulate: true)
 
+        @before_compile Snmp.Instrumentation
         @before_compile Snmp.Mib
       end
     ] ++
@@ -81,11 +82,8 @@ defmodule Snmp.Mib do
     enums = env.module |> Module.get_attribute(:enum)
     ranges = env.module |> Module.get_attribute(:range)
     defaults = env.module |> Module.get_attribute(:default)
-    varfuns = env.module |> Module.get_attribute(:varfun)
-    tablefuns = env.module |> Module.get_attribute(:tablefun)
 
-    gen_instrumentation(env) ++
-      Enum.map(enums, &gen_enum(&1, env)) ++
+    Enum.map(enums, &gen_enum(&1, env)) ++
       Enum.map(oids, &gen_oid/1) ++
       Enum.map(oids, &gen_oname/1) ++
       [gen_oids(oids, env)] ++
@@ -100,9 +98,7 @@ defmodule Snmp.Mib do
         quote do
           def __default__(_), do: nil
         end
-      ] ++
-      Enum.map(varfuns, &gen_varfun(&1, env)) ++
-      Enum.map(tablefuns, &gen_tablefun(&1, env))
+      ]
   end
 
   defp compile_mib(src, dest, opts) do
@@ -310,74 +306,6 @@ defmodule Snmp.Mib do
   defp gen_default({name, default}) do
     quote do
       def __default__(unquote(name)), do: unquote(default)
-    end
-  end
-
-  defp gen_varfun(varname, env) do
-    instrumentation =
-      env.module
-      |> Module.get_attribute(:instrumentation)
-      |> Macro.escape()
-
-    quote do
-      def unquote(varname)(op) when op in [:new, :delete, :get],
-        do: apply(unquote(instrumentation), op, [unquote(varname)])
-
-      def unquote(varname)(op, val) when op in [:is_set_ok, :undo, :set],
-        do: apply(unquote(instrumentation), op, [unquote(varname), val])
-    end
-  end
-
-  defp gen_tablefun(varname, env) do
-    instrumentation =
-      env.module
-      |> Module.get_attribute(:instrumentation)
-      |> Macro.escape()
-
-    quote do
-      def unquote(varname)(op) when op in [:new, :delete],
-        do: apply(unquote(instrumentation), op, [unquote(varname)])
-
-      def unquote(varname)(op, row_index, cols)
-          when op in [:get, :get_next, :is_set_ok, :undo, :set],
-          do: apply(unquote(instrumentation), op, [unquote(varname), row_index, cols])
-    end
-  end
-
-  defp gen_instrumentation(env) do
-    instrumentation? =
-      Module.get_attribute(env.module, :instrumentation) == env.module and
-        (Module.get_attribute(env.module, :varfun) != [] or
-           Module.get_attribute(env.module, :tablefun) != [])
-
-    if instrumentation? do
-      [
-        quote do
-          @behaviour Snmp.Instrumentation
-
-          @doc false
-          def new(_), do: :ok
-
-          @doc false
-          def delete(_), do: :ok
-
-          @doc false
-          def is_set_ok(_, _), do: :noError
-
-          @doc false
-          def is_set_ok(_, _, _), do: {:noError, 0}
-
-          @doc false
-          def undo(_, _), do: :noError
-
-          @doc false
-          def undo(_, _, _), do: :noError
-
-          defoverridable new: 1, delete: 1, is_set_ok: 2, is_set_ok: 3, undo: 2, undo: 3
-        end
-      ]
-    else
-      []
     end
   end
 end
