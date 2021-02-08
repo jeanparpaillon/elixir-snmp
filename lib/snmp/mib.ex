@@ -151,7 +151,7 @@ defmodule Snmp.Mib do
     |> parse_default(me)
     |> parse_enum(me)
     |> parse_varfun(me, env)
-    |> parse_tablefun(me)
+    |> parse_tablefun(me, env)
   end
 
   defp parse_oid(ast, me(oid: oid, aliasname: name)) do
@@ -265,7 +265,7 @@ defmodule Snmp.Mib do
     end
   end
 
-  defp parse_tablefun(ast, _), do: ast
+  defp parse_tablefun(ast, _, _), do: ast
 
   ###
   ### (phase 2) translate module attributes into functions/modules
