@@ -44,7 +44,15 @@ defmodule Snmp.Mib do
   @doc false
   defmacro __using__(opts) do
     src = Keyword.fetch!(opts, :path)
-    instrumentation = Keyword.get(opts, :instrumentation, __CALLER__.module)
+    {instr_mod, instr_opts} =
+      opts
+      |> Keyword.get(:instrumentation, __CALLER__.module)
+      |> Macro.expand(__CALLER__)
+      |> case do
+        {mod, opts} -> {mod, opts}
+        mod when is_atom(mod) -> {mod, nil}
+      end
+
     basename = Path.basename(src, ".mib")
 
     dest = Path.join([Mix.Project.app_path(), "priv", "mibs", basename <> ".bin"])
@@ -55,9 +63,7 @@ defmodule Snmp.Mib do
 
     [
       quote do
-        require Record
-
-        @instrumentation unquote(instrumentation)
+        @instrumentation {unquote(instr_mod), unquote(instr_opts)}
 
         @external_resource unquote(Macro.escape(src))
         @mibname unquote(basename)
