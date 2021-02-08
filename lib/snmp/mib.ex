@@ -1,6 +1,25 @@
 defmodule Snmp.Mib do
   @moduledoc """
-  Helper for instrumentation module
+  Generates module from MIB
+
+  # Enumerations
+
+  Generates `Snmp.MIB.TextualConvention` modules from enumerations
+
+  # OIDs
+
+  Generates the following functions:
+  * `__oid__/1`: returns OID from name
+  * `__oname__/1`: returns name from OID
+  * `__oids__/0`: returns name/OID full map
+
+  # Ranges
+
+  Generates `__range__/1`: returns `{low_value, high_value}` from name
+
+  # Defaults
+
+  Generates `__default__/1`: returns default value from name, or nil
   """
   require Record
 
@@ -23,7 +42,9 @@ defmodule Snmp.Mib do
   )
 
   @doc false
-  defmacro __using__(path: src) when is_binary(src) do
+  defmacro __using__(opts) do
+    src = Keyword.fetch!(opts, :path)
+    instrumentation = Keyword.get(opts, :instrumentation, __CALLER__.module)
     basename = Path.basename(src, ".mib")
 
     dest = Path.join([Mix.Project.app_path(), "priv", "mibs", basename <> ".bin"])
@@ -32,11 +53,12 @@ defmodule Snmp.Mib do
     {:ok, _dest} = compile_mib(src, dest, opts)
     {:ok, mib} = :snmpc_misc.read_mib('#{dest}')
 
-    # IO.inspect(mib, label: "MIB")
-
     [
       quote do
         require Record
+
+        @behaviour Snmp.Instrumentation
+        @instrumentation unquote(instrumentation)
 
         @external_resource unquote(Macro.escape(src))
         @mibname unquote(basename)
@@ -52,26 +74,36 @@ defmodule Snmp.Mib do
       end
     ] ++
       Enum.map(mib(mib, :asn1_types), &parse_asn1_type/1) ++
-      Enum.map(mib(mib, :mes), fn me ->
-        IO.inspect(me, label: "ME")
-        parse_me(me)
-      end)
+      Enum.map(mib(mib, :mes), &parse_me(&1, __CALLER__)) ++
+      gen_default_instrumentation(instrumentation, __CALLER__)
   end
 
   defmacro __before_compile__(env) do
-    for enum <- Module.get_attribute(env.module, :enum) do
-      gen_enum(enum, env)
-    end ++
-      for oid <- Module.get_attribute(env.module, :oid) do
-        gen_oid(oid)
-      end ++
-      for oid <- Module.get_attribute(env.module, :oid) do
-        gen_oname(oid)
-      end ++
-      [gen_oids(Module.get_attribute(env.module, :oid), env)] ++
-      for range <- Module.get_attribute(env.module, :range) do
-        gen_range(range)
-      end
+    oids = env.module |> Module.get_attribute(:oid) |> Enum.uniq()
+    enums = env.module |> Module.get_attribute(:enum)
+    ranges = env.module |> Module.get_attribute(:range)
+    defaults = env.module |> Module.get_attribute(:default)
+    varfuns = env.module |> Module.get_attribute(:varfun)
+    tablefuns = env.module |> Module.get_attribute(:tablefun)
+
+    Enum.map(enums, &gen_enum(&1, env)) ++
+      Enum.map(oids, &gen_oid/1) ++
+      Enum.map(oids, &gen_oname/1) ++
+      [gen_oids(oids, env)] ++
+      Enum.map(ranges, &gen_range/1) ++
+      [
+        quote do
+          def __range__(_), do: nil
+        end
+      ] ++
+      Enum.map(defaults, &gen_default/1) ++
+      [
+        quote do
+          def __default__(_), do: nil
+        end
+      ] ++
+      Enum.map(varfuns, &gen_varfun(&1, env)) ++
+      Enum.map(tablefuns, &gen_tablefun(&1, env))
   end
 
   defp compile_mib(src, dest, opts) do
@@ -94,63 +126,149 @@ defmodule Snmp.Mib do
     :snmpc.compile('#{src}', opts)
   end
 
-  defp parse_asn1_type(asn1_type(imported: false, aliasname: name, assocList: [enums: enums])) do
-    quote do
-      @enum {unquote(name), unquote(enums)}
+  ###
+  ### (phase 1) extract MIB records into module attributes
+  ###
+  defp parse_asn1_type(asn1_type(imported: false, aliasname: name, assocList: alist)) do
+    case Keyword.get(alist, :enums) do
+      nil ->
+        []
+
+      enums ->
+        quote do
+          @enum {unquote(name), unquote(enums)}
+        end
     end
   end
 
   defp parse_asn1_type(_), do: []
 
-  defp parse_me(me(oid: oid, asn1_type: :undefined, aliasname: name)) do
-    quote do
-      @oid {unquote(oid), unquote(name)}
+  defp parse_me(me, env) do
+    []
+    |> parse_oid(me)
+    |> parse_range(me)
+    |> parse_default(me)
+    |> parse_enum(me)
+    |> parse_varfun(me, env)
+    |> parse_tablefun(me)
+  end
+
+  defp parse_oid(ast, me(oid: oid, aliasname: name)) do
+    ast ++
+      [
+        quote do
+          @oid {unquote(oid), unquote(name)}
+        end
+      ]
+  end
+
+  defp parse_range(ast, me(asn1_type: asn1_type(lo: :undefined))), do: ast
+
+  defp parse_range(ast, me(asn1_type: asn1_type(hi: :undefined))), do: ast
+
+  defp parse_range(
+         ast,
+         me(asn1_type: asn1_type(bertype: bertype, lo: lo, hi: hi), aliasname: name)
+       )
+       when bertype in [:"OCTET-STRING", :Unsigned32, :Counter32, :INTEGER] do
+    ast ++
+      [
+        quote do
+          @range {unquote(name), unquote(lo), unquote(hi)}
+        end
+      ]
+  end
+
+  defp parse_range(ast, _), do: ast
+
+  defp parse_default(ast, me(entrytype: :table_column, assocList: alist, aliasname: name)) do
+    case Keyword.get(alist, :defval) do
+      nil ->
+        ast
+
+      defval ->
+        ast ++
+          [
+            quote do
+              @default {unquote(name), unquote(defval)}
+            end
+          ]
     end
   end
 
-  defp parse_me(me(oid: oid, asn1_type: type, aliasname: name)) do
-    asn1_type(bertype: bertype, lo: lo, hi: hi) = type
+  defp parse_default(ast, me(entrytype: :variable, assocList: alist, aliasname: name)) do
+    case Keyword.get(alist, :variable_info) do
+      nil ->
+        ast
 
-    ast = [
-      quote do
-        @oid {unquote(oid), unquote(name)}
-      end
-    ]
+      variable_info(defval: :undefined) ->
+        ast
 
-    ast =
-      cond do
-        :undefined == lo or :undefined == hi ->
-          ast
-
-        bertype in [:OCTET_STRING, :Unsigned32, :Counter32, :INTEGER] ->
-          ast ++
-            [
-              quote do
-                @range {unquote(name), unquote(lo), unquote(hi)}
-              end
-            ]
-
-        true ->
-          ast
-      end
-
-    ast =
-      case type do
-        asn1_type(imported: false, assocList: [enums: enums]) ->
-          ast ++
-            [
-              quote do
-                @enum {unquote(name), unquote(enums)}
-              end
-            ]
-
-        _ ->
-          ast
-      end
-
-    ast
+      variable_info(defval: defval) ->
+        ast ++
+          [
+            quote do
+              @default {unquote(name), unquote(defval)}
+            end
+          ]
+    end
   end
 
+  defp parse_default(ast, _), do: ast
+
+  defp parse_enum(
+         ast,
+         me(imported: false, aliasname: name, asn1_type: asn1_type(assocList: alist))
+       ) do
+    case Keyword.get(alist, :enums) do
+      nil ->
+        ast
+
+      enums ->
+        ast ++
+          [
+            quote do
+              @enum {unquote(name), unquote(enums)}
+            end
+          ]
+    end
+  end
+
+  defp parse_enum(ast, _), do: ast
+
+  defp parse_varfun(ast, me(entrytype: :variable, mfa: {m, f, _}), env) do
+    if m == env.module do
+      ast ++
+        [
+          quote do
+            @varfun unquote(f)
+          end
+        ]
+    else
+      []
+    end
+  end
+
+  defp parse_varfun(ast, _, _), do: ast
+
+  defp parse_tablefun(ast, me(entrytype: :table_entry, mfa: {m, f, _}), env) do
+    if m == env.module do
+      ast ++
+        [
+          quote do
+            @tablefun unquote(f)
+          end
+        ]
+    else
+      ast
+    end
+  end
+
+  defp parse_tablefun(ast, _), do: ast
+
+  ###
+  ### (phase 2) translate module attributes into functions/modules
+  ###
   defp gen_enum({name, values}, env) do
     quote do
       defmodule unquote(Module.concat(env.module, name)) do
@@ -184,11 +302,76 @@ defmodule Snmp.Mib do
     end
   end
 
-  defp gen_range({_name, :undefined, :undefined}), do: []
-
   defp gen_range({name, lo, hi}) do
     quote do
       def __range__(unquote(name)), do: {unquote(lo), unquote(hi)}
+    end
+  end
+
+  defp gen_default({name, default}) do
+    quote do
+      def __default__(unquote(name)), do: unquote(default)
+    end
+  end
+
+  defp gen_varfun(varname, env) do
+    instrumentation =
+      env.module
+      |> Module.get_attribute(:instrumentation)
+      |> Macro.escape()
+
+    quote do
+      def unquote(varname)(op) when op in [:new, :delete, :get],
+        do: apply(unquote(instrumentation), op, [unquote(varname)])
+
+      def unquote(varname)(op, val) when op in [:is_set_ok, :undo, :set],
+        do: apply(unquote(instrumentation), op, [unquote(varname), val])
+    end
+  end
+
+  defp gen_tablefun(varname, env) do
+    instrumentation =
+      env.module
+      |> Module.get_attribute(:instrumentation)
+      |> Macro.escape()
+
+    quote do
+      def unquote(varname)(op) when op in [:new, :delete],
+        do: apply(unquote(instrumentation), op, [unquote(varname)])
+
+      def unquote(varname)(op, row_index, cols)
+          when op in [:get, :get_next, :is_set_ok, :undo, :set],
+          do: apply(unquote(instrumentation), op, [unquote(varname), row_index, cols])
+    end
+  end
+
+  defp gen_default_instrumentation(mod, env) do
+    if mod == env.module do
+      [
+        quote do
+          @doc false
+          def new(_), do: :ok
+
+          @doc false
+          def delete(_), do: :ok
+
+          @doc false
+          def is_set_ok(_, _), do: :noError
+
+          @doc false
+          def is_set_ok(_, _, _), do: {:noError, 0}
+
+          @doc false
+          def undo(_, _), do: :noError
+
+          @doc false
+          def undo(_, _, _), do: :noError
+
+          defoverridable new: 1, delete: 1, is_set_ok: 2, is_set_ok: 3, undo: 2, undo: 3
+        end
+      ]
+    else
+      []
     end
   end
 end
