@@ -57,7 +57,6 @@ defmodule Snmp.Mib do
       quote do
         require Record
 
-        @behaviour Snmp.Instrumentation
         @instrumentation unquote(instrumentation)
 
         @external_resource unquote(Macro.escape(src))
@@ -74,8 +73,7 @@ defmodule Snmp.Mib do
       end
     ] ++
       Enum.map(mib(mib, :asn1_types), &parse_asn1_type/1) ++
-      Enum.map(mib(mib, :mes), &parse_me(&1, __CALLER__)) ++
-      gen_default_instrumentation(instrumentation, __CALLER__)
+      Enum.map(mib(mib, :mes), &parse_me(&1, __CALLER__))
   end
 
   defmacro __before_compile__(env) do
@@ -86,7 +84,8 @@ defmodule Snmp.Mib do
     varfuns = env.module |> Module.get_attribute(:varfun)
     tablefuns = env.module |> Module.get_attribute(:tablefun)
 
-    Enum.map(enums, &gen_enum(&1, env)) ++
+    gen_instrumentation(env) ++
+      Enum.map(enums, &gen_enum(&1, env)) ++
       Enum.map(oids, &gen_oid/1) ++
       Enum.map(oids, &gen_oname/1) ++
       [gen_oids(oids, env)] ++
@@ -345,10 +344,17 @@ defmodule Snmp.Mib do
     end
   end
 
-  defp gen_default_instrumentation(mod, env) do
-    if mod == env.module do
+  defp gen_instrumentation(env) do
+    instrumentation? =
+      Module.get_attribute(env.module, :instrumentation) == env.module and
+        (Module.get_attribute(env.module, :varfun) != [] or
+           Module.get_attribute(env.module, :tablefun) != [])
+
+    if instrumentation? do
       [
         quote do
+          @behaviour Snmp.Instrumentation
+
           @doc false
           def new(_), do: :ok
 
