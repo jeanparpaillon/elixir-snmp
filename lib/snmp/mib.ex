@@ -41,9 +41,23 @@ defmodule Snmp.Mib do
     Record.extract(:table_info, from_lib: "snmp/include/snmp_types.hrl")
   )
 
+  @type t ::
+          record(:mib,
+            misc: term(),
+            mib_format_version: term(),
+            name: term(),
+            module_identity: term(),
+            mes: term(),
+            asn1_types: term(),
+            traps: term(),
+            variable_infos: term(),
+            imports: term()
+          )
+
+  alias Snmp.Compiler
+
   @doc false
   defmacro __using__(opts) do
-    src = Keyword.fetch!(opts, :path)
     {instr_mod, instr_opts} =
       opts
       |> Keyword.get(:instrumentation, __CALLER__.module)
@@ -53,20 +67,17 @@ defmodule Snmp.Mib do
         mod when is_atom(mod) -> {mod, nil}
       end
 
-    basename = Path.basename(src, ".mib")
+    name = Keyword.fetch!(opts, :name)
+    opts = Compiler.Options.from_project()
+    opts = %{opts | extra_opts: [{:module, instr_mod} | opts.extra_opts], force: true}
 
-    dest = Path.join([Mix.Project.app_path(), "priv", "mibs", basename <> ".bin"])
-    :ok = File.mkdir_p!(Path.dirname(dest))
-    opts = [{:module, __CALLER__.module}]
-    {:ok, _dest} = compile_mib(src, dest, opts)
-    {:ok, mib} = :snmpc_misc.read_mib('#{dest}')
+    {:ok, mib} = Compiler.mib(name, opts)
 
     [
       quote do
         @instrumentation {unquote(instr_mod), unquote(instr_opts)}
 
-        @external_resource unquote(Macro.escape(src))
-        @mibname unquote(basename)
+        @mibname unquote(name)
 
         Module.register_attribute(__MODULE__, :varfun, accumulate: true)
         Module.register_attribute(__MODULE__, :tablefun, accumulate: true)
@@ -105,26 +116,6 @@ defmodule Snmp.Mib do
           def __default__(_), do: nil
         end
       ]
-  end
-
-  defp compile_mib(src, dest, opts) do
-    project = Mix.Project.config()
-
-    mib_includes =
-      (Keyword.get(project, :mib_include_path, []) ++ [Path.dirname(dest) | project[:erlc_paths]])
-      |> Enum.map(&'#{&1}')
-
-    File.mkdir_p!(Path.dirname(dest))
-
-    opts = [
-      {:outdir, '#{Path.dirname(dest)}'},
-      {:i, mib_includes},
-      {:group_check, false},
-      :no_defs | opts
-    ]
-
-    src = Path.expand(src)
-    :snmpc.compile('#{src}', opts)
   end
 
   ###
