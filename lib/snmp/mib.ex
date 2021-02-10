@@ -41,6 +41,8 @@ defmodule Snmp.Mib do
     Record.extract(:table_info, from_lib: "snmp/include/snmp_types.hrl")
   )
 
+  @type name :: atom() | charlist() | String.t()
+
   @type t ::
           record(:mib,
             misc: term(),

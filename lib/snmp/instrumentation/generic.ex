@@ -45,7 +45,8 @@ defmodule Snmp.Instrumentation.Generic do
   def set(varname, val, db), do: :snmp_generic.variable_func(:set, val, {varname, db})
 
   @impl Instrumentation
-  def set(table, row_index, cols, db), do: :snmp_generic.table_func(:set, row_index, cols, {table, db})
+  def set(table, row_index, cols, db),
+    do: :snmp_generic.table_func(:set, row_index, cols, {table, db})
 
   @impl Instrumentation
   def undo(varname, val, db), do: :snmp_generic.variable_func(:undo, val, {varname, db})

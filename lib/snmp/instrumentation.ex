@@ -123,7 +123,14 @@ defmodule Snmp.Instrumentation do
       @doc false
       def undo(_, _, _, _), do: :noError
 
-      defoverridable new: 2, delete: 2, new_table: 2, delete_table: 2, is_set_ok: 3, is_set_ok: 4, undo: 3, undo: 4
+      defoverridable new: 2,
+                     delete: 2,
+                     new_table: 2,
+                     delete_table: 2,
+                     is_set_ok: 3,
+                     is_set_ok: 4,
+                     undo: 3,
+                     undo: 4
     end
   end
 
@@ -153,7 +160,7 @@ defmodule Snmp.Instrumentation do
       def unquote(varname)(:delete),
         do: apply(@instr_mod, :delete_table, [unquote(varname), @instr_opts])
 
-        def unquote(varname)(:get),
+      def unquote(varname)(:get),
         do: apply(@instr_mod, :get, [unquote(varname), @instr_opts])
 
       def unquote(varname)(op, row_index, cols)
