@@ -36,7 +36,7 @@ defmodule Snmp.Agent.Handler do
 
       def net_conf, do: Application.get_env(@otp_app, :snmp_net, 161)
 
-      defoverridable db_dir: 0, conf_dir: 0, agent_env: 0, engine_id: 0
+      defoverridable db_dir: 0, conf_dir: 0, agent_env: 0
     end
   end
 end

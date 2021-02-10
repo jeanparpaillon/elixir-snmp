@@ -9,7 +9,7 @@ defmodule Snmp.Agent do
 
   require Logger
 
-  defstruct handler: nil, errors: [], config: map()
+  defstruct handler: nil, errors: [], config: %{}, overwrite: false
 
   @typedoc "Module implementing `Snmp.Agent.Handler` behaviour"
   @type handler :: module()
@@ -24,9 +24,16 @@ defmodule Snmp.Agent do
     module: :snmpa_net_if
   ]
 
-  @default_agent_conf [
-    snmpEngineID: 'SNMP Agent',
-    snmpEngineMaxMessageSize: 1500
+  @configs [
+    agent_conf: "agent.conf",
+    context_conf: "context.conf",
+    standard_conf: "standard.conf",
+    community_conf: "community.conf",
+    vacm_conf: "vacm.conf",
+    usm_conf: "usm.conf",
+    notify_conf: "notify.conf",
+    target_conf: "target_addr.conf",
+    target_params_conf: "target_params.conf"
   ]
 
   # Logger to SNMP agent verbosity mapping
@@ -82,6 +89,13 @@ defmodule Snmp.Agent do
     |> verbosity()
     |> when_valid?(&agent_env/1)
     |> when_valid?(&agent_conf/1)
+    # |> when_valid?(&context_conf/1)
+    # |> when_valid?(&standard_conf/1)
+    # |> when_valid?(&community_conf/1)
+    # |> when_valid?(&vacm_conf/1)
+    # |> when_valid?(&usm_conf/1)
+    # |> when_valid?(&notify_conf/1)
+    # |> when_valid?(&target_conf/1)
     |> when_valid?(&commit/1)
   end
 
@@ -112,15 +126,15 @@ defmodule Snmp.Agent do
     env =
       @default_agent_env
       |> Keyword.merge(
-        db_dir: get_config(s, :db_dir),
-        config: [dir: get_config(s, :conf_dir)],
-        agent_verbosity: get_config(s, :verbosity)
+        db_dir: fetch_config!(s, :db_dir),
+        config: [dir: fetch_config!(s, :conf_dir)],
+        agent_verbosity: fetch_config!(s, :verbosity)
       )
       |> Keyword.merge(cb(s, :agent_env))
 
     net_if_env =
       @default_net_if_env
-      |> Keyword.merge(verbosity: get_config(s, :verbosity))
+      |> Keyword.merge(verbosity: fetch_config!(s, :verbosity))
       |> Keyword.merge(cb(s, :net_if_env))
 
     put_config(s, :agent_env, [{:net_if, net_if_env} | env])
@@ -153,18 +167,27 @@ defmodule Snmp.Agent do
   defp commit(s) do
     :ok = Application.put_env(:snmp, :agent, get_config(s, :agent_env))
 
-    with {:ok, :agent_conf} <- write_config(s, :agent_conf, "agent.conf") do
-      s
-    else
-      {:error, error} -> error(s, error)
-    end
+    @configs
+    |> Enum.reduce(s, fn {name, file}, acc ->
+      case write_config(s, name, file) do
+        {:ok, _} -> acc
+        {:error, error} -> error(acc, error)
+      end
+    end)
   end
 
   defp write_config(s, name, file) do
-    s
-    |> config_path(file)
-    |> write_terms(get_config(s, name))
-    |> case do
+    path = config_path(s, file)
+
+    terms =
+      s
+      |> get_config(name)
+      |> case do
+        nil -> []
+        config -> config
+      end
+
+    case write_terms(path, terms, s.overwrite) do
       :ok -> {:ok, name}
       {:error, error} -> {:error, error}
     end
@@ -174,9 +197,9 @@ defmodule Snmp.Agent do
     s |> get_config(:conf_dir) |> Path.join(path)
   end
 
-  defp get_config(s, key) do
-    Map.fetch!(s.config, key)
-  end
+  defp fetch_config!(s, key), do: Map.fetch!(s.config, key)
+
+  defp get_config(s, key), do: Map.get(s.config, key)
 
   defp put_config(s, key, value) do
     %{s | config: Map.put(s.config, key, value)}
@@ -190,8 +213,8 @@ defmodule Snmp.Agent do
 
   defp when_valid?(s, _fun), do: s
 
-  defp write_terms(path, terms) do
-    unless file_ok(path) do
+  defp write_terms(path, terms, overwrite) do
+    unless file_ok(path, overwrite) do
       data = Enum.map(terms, &:io_lib.format('~tp.~n', [&1]))
       File.write(path, data)
     else
@@ -199,7 +222,9 @@ defmodule Snmp.Agent do
     end
   end
 
-  defp file_ok(path) do
+  defp file_ok(_, true), do: false
+
+  defp file_ok(path, false) do
     with true <- File.exists?(path),
          {:ok, terms} when terms != [] <- :file.consult('#{path}') do
       # File OK
