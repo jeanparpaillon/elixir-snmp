@@ -9,7 +9,7 @@ defmodule Snmp.Agent do
 
   require Logger
 
-  defstruct handler: nil, errors: [], config: %{}, overwrite: false
+  defstruct handler: nil, errors: [], config: %{}, overwrite: true
 
   @typedoc "Module implementing `Snmp.Agent.Handler` behaviour"
   @type handler :: module()
@@ -51,12 +51,50 @@ defmodule Snmp.Agent do
     emergency: :silence
   }
 
+  @public_sec 'publicSec'
+  @private_sec 'privateSec'
+  @trap_sec 'trapSec'
+
+  @public_group 'publicGroup'
+  @private_group 'privateGroup'
+
+  @notify_tag 'notify'
+
   @doc """
   Starts SNMP agent
   """
   @spec start_link(handler) :: GenServer.on_start()
   def start_link(args) do
     GenServer.start_link(__MODULE__, args, name: __MODULE__)
+  end
+
+  @doc """
+  Returns MIB tree as stream
+  """
+  @spec stream(:snmpa.oid()) :: Stream.t()
+  def stream(oid) do
+    Stream.resource(
+      fn -> [oid] end,
+      fn oids ->
+        case :snmpa.get_next(:snmp_master_agent, oids) do
+          {:error, reason} -> {:halt, {:error, reason}}
+          [] -> {:halt, :ok}
+          [{oid, :endOfMibView}] -> {:halt, oid}
+          [{oid, value}] -> {[{oid_to_dot(oid), value}], [oid]}
+        end
+      end,
+      fn _oid -> :ok end
+    )
+  end
+
+  @doc """
+  Resolve OID into dot separated names
+  """
+  @spec oid_to_dot(:snmpa.oid()) :: String.t()
+  def oid_to_dot(oid) when is_list(oid) do
+    oid
+    |> oid_to_names([])
+    |> Enum.join(".")
   end
 
   @impl GenServer
@@ -89,13 +127,13 @@ defmodule Snmp.Agent do
     |> verbosity()
     |> when_valid?(&agent_env/1)
     |> when_valid?(&agent_conf/1)
-    # |> when_valid?(&context_conf/1)
-    # |> when_valid?(&standard_conf/1)
-    # |> when_valid?(&community_conf/1)
-    # |> when_valid?(&vacm_conf/1)
-    # |> when_valid?(&usm_conf/1)
-    # |> when_valid?(&notify_conf/1)
-    # |> when_valid?(&target_conf/1)
+    |> when_valid?(&context_conf/1)
+    |> when_valid?(&standard_conf/1)
+    |> when_valid?(&community_conf/1)
+    |> when_valid?(&vacm_conf/1)
+    |> when_valid?(&usm_conf/1)
+    |> when_valid?(&notify_conf/1)
+    |> when_valid?(&target_conf/1)
     |> when_valid?(&commit/1)
   end
 
@@ -152,16 +190,140 @@ defmodule Snmp.Agent do
           {cast_addresses([{0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}]), port}
       end
 
+    framework_values =
+      take_mib(s, :framework_mib, [
+        :snmpEngineID,
+        :snmpEngineBoots,
+        :snmpEngineTime,
+        :snmpEngineMaxMessageSize
+      ])
+
     agent_conf =
       [
         intAgentUDPPort: port,
         intAgentTransports: transports
       ]
-      |> Keyword.merge(cb(s, :snmp_framework_mib))
+      |> Keyword.merge(framework_values)
 
     s
     |> put_config(:agent_conf, agent_conf)
     |> validate_required(:agent_conf, [:snmpEngineID, :snmpEngineMaxMessageSize])
+  end
+
+  defp context_conf(s) do
+    contexts =
+      if :v3 in versions(s) do
+        s
+        |> cb(:contexts)
+        |> Enum.map(&to_charlist/1)
+      else
+        []
+      end
+
+    s
+    |> put_config(:context_conf, contexts)
+  end
+
+  defp standard_conf(s) do
+    values =
+      take_mib(s, :standard_mib, [
+        :sysName,
+        :sysDescr,
+        :sysContact,
+        :sysLocation,
+        :sysObjectID,
+        :sysServices,
+        :snmpEnableAuthenTraps
+      ])
+
+    s
+    |> put_config(:standard_conf, values)
+  end
+
+  defp community_conf(s) do
+    community = [
+      {'public', 'public', @public_sec, '', ''},
+      {'private', 'private', @private_sec, '', ''},
+      {'trap', 'trap', @trap_sec, '', ''}
+    ]
+
+    s
+    |> put_config(:community_conf, community)
+  end
+
+  defp vacm_conf(s) do
+    vacm_conf = [
+      {:vacmSecurityToGroup, :usm, @public_sec, @public_group},
+      {:vacmSecurityToGroup, :usm, @private_sec, @private_group},
+      {:vacmSecurityToGroup, :v2c, @public_sec, @public_group},
+      {:vacmSecurityToGroup, :v2c, @private_sec, @private_group},
+      {:vacmSecurityToGroup, :v1, @public_sec, @public_group},
+      {:vacmSecurityToGroup, :v1, @private_sec, @private_group},
+      {:vacmAccess, @public_group, '', :v1, :noAuthNoPriv, :exact, 'internet', '', 'restricted'},
+      {:vacmAccess, @public_group, '', :v2c, :noAuthNoPriv, :exact, 'internet', '', 'restricted'},
+      {:vacmAccess, @public_group, '', :usm, :noAuthNoPriv, :exact, 'internet', '', 'restricted'},
+      {:vacmAccess, @private_group, '', :v1, :noAuthNoPriv, :exact, 'restricted', 'restricted',
+       'restricted'},
+      {:vacmAccess, @private_group, '', :v2c, :noAuthNoPriv, :exact, 'restricted', 'restricted',
+       'restricted'},
+      {:vacmAccess, @private_group, '', :usm, :authNoPriv, :exact, 'restricted', 'restricted',
+       'restricted'},
+      {:vacmAccess, @private_group, '', :v1, :noAuthNoPriv, :exact, 'restricted', 'restricted',
+       'restricted'},
+      {:vacmAccess, @private_group, '', :v2c, :noAuthNoPriv, :exact, 'restricted', 'restricted',
+       'restricted'},
+      {:vacmAccess, @private_group, '', :usm, :authPriv, :exact, 'restricted', 'restricted',
+       'restricted'},
+      {:vacmViewTreeFamily, 'internet', [1, 3, 6, 1, 2, 1], :included, :null},
+      {:vacmViewTreeFamily, 'restricted', [1, 3, 6, 1], :included, :null}
+    ]
+
+    s
+    |> put_config(:vacm_conf, vacm_conf)
+  end
+
+  defp usm_conf(s) do
+    usm_conf = [
+      {'agent', '', 'publicSec', :zeroDotZero, :usmNoAuthProtocol, '', '', :usmNoPrivProtocol, '',
+       '', '', '', ''},
+      {'agent', 'admin', 'privateSec', :zeroDotZero, :usmHMACMD5AuthProtocol, '', '',
+       :usmNoPrivProtocol, '', '', '',
+       [69, 162, 150, 62, 179, 98, 234, 173, 133, 128, 124, 29, 219, 216, 70, 165], ''}
+    ]
+
+    s
+    |> put_config(:usm_conf, usm_conf)
+  end
+
+  defp notify_conf(s) do
+    notify_conf = [
+      {'target1_v1', @notify_tag, :trap},
+      {'target1_v2', @notify_tag, :trap},
+      {'target1_v3', @notify_tag, :trap},
+      {'target2_v1', @notify_tag, :trap},
+      {'target2_v2', @notify_tag, :trap},
+      {'target2_v3', @notify_tag, :trap},
+      {'target3_v1', @notify_tag, :trap},
+      {'target3_v2', @notify_tag, :trap},
+      {'target3_v3', @notify_tag, :trap}
+    ]
+
+    s
+    |> put_config(:notify_conf, notify_conf)
+  end
+
+  defp target_conf(s) do
+    target_conf = []
+
+    target_params_conf = [
+      {'target_v1', :v1, :v1, @public_sec, :noAuthNoPriv},
+      {'target_v2', :v2c, :v2c, @public_sec, :noAuthNoPriv},
+      {'target_v3', :v3, :usm, @public_sec, :noAuthNoPriv}
+    ]
+
+    s
+    |> put_config(:target_conf, target_conf)
+    |> put_config(:target_params_conf, target_params_conf)
   end
 
   defp commit(s) do
@@ -260,7 +422,50 @@ defmodule Snmp.Agent do
 
     case required -- keys do
       [] -> s
-      missing -> error(s, "missing keys in #{section}: #{inspect missing}")
+      missing -> error(s, "missing keys in #{section}: #{inspect(missing)}")
     end
+  end
+
+  defp take_mib(s, name, keys) do
+    mib = cb(s, name)
+
+    keys
+    |> Enum.reduce([], fn varname, acc ->
+      try do
+        case apply(mib, varname, [:get]) do
+          {:value, value} -> [{varname, value} | acc]
+          _ -> acc
+        end
+      rescue
+        UndefinedFunctionError -> acc
+      end
+    end)
+    |> Enum.map(fn
+      {k, v} when is_binary(v) -> {k, to_charlist(v)}
+      {k, v} -> {k, v}
+    end)
+  end
+
+  defp versions(s) do
+    s
+    |> get_config(:agent_env)
+    |> Keyword.get(:versions, @default_agent_env[:versions])
+  end
+
+  defp oid_to_names([], acc), do: acc
+
+  defp oid_to_names([1,3,6,1,2], acc), do: acc
+
+  defp oid_to_names(oid, acc) do
+    r_oid = Enum.reverse(oid)
+
+    name =
+      case :snmpa.oid_to_name(oid) do
+        false -> "#{hd(r_oid)}"
+        {:value, name} -> name
+      end
+
+    oid = r_oid |> tl() |> Enum.reverse()
+    oid_to_names(oid, [name | acc])
   end
 end

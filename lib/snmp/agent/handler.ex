@@ -14,12 +14,21 @@ defmodule Snmp.Agent.Handler do
               | {:inet.ip_address() | [:inet.ip_address()], :inet.port_number()}
 
   @doc """
-  Returns keyword list of SNMP-FRAMEWORK-MIB variables
+  Returns module implementing SNMP-FRAMEWORK-MIB
   """
-  @callback snmp_framework_mib() :: Keyword.t()
+  @callback framework_mib() :: module()
+
+  @doc """
+  Returns module implementing STANDARD-MIB
+  """
+  @callback standard_mib() :: module()
+
+  @callback contexts() :: [String.Chars.t()]
 
   defmacro __using__(opts) do
     app = Keyword.fetch!(opts, :otp_app)
+    standard_mib = Keyword.fetch!(opts, :standard)
+    framework_mib = Keyword.fetch!(opts, :framework)
 
     quote do
       @behaviour Snmp.Agent.Handler
@@ -36,7 +45,13 @@ defmodule Snmp.Agent.Handler do
 
       def net_conf, do: Application.get_env(@otp_app, :snmp_net, 161)
 
-      defoverridable db_dir: 0, conf_dir: 0, agent_env: 0
+      def framework_mib, do: unquote(framework_mib)
+
+      def standard_mib, do: unquote(standard_mib)
+
+      def contexts, do: []
+
+      defoverridable db_dir: 0, conf_dir: 0, agent_env: 0, contexts: 0
     end
   end
 end
