@@ -71,7 +71,7 @@ defmodule Snmp.Agent do
   @doc """
   Returns MIB tree as stream
   """
-  @spec stream(:snmpa.oid()) :: Stream.t()
+  @spec stream(:snmp.oid()) :: Enum.t()
   def stream(oid) do
     Stream.resource(
       fn -> [oid] end,
@@ -90,7 +90,7 @@ defmodule Snmp.Agent do
   @doc """
   Resolve OID into dot separated names
   """
-  @spec oid_to_dot(:snmpa.oid()) :: String.t()
+  @spec oid_to_dot(:snmp.oid()) :: String.t()
   def oid_to_dot(oid) when is_list(oid) do
     oid
     |> oid_to_names([])
