@@ -2,6 +2,10 @@ defmodule Snmp.Instrumentation do
   @moduledoc """
   Describes behaviour for module implementing MIB instrumentation functions
   """
+  require Record
+
+  Record.defrecord(:me, Record.extract(:me, from_lib: "snmp/include/snmp_types.hrl"))
+
   @type row_index :: [integer()]
   @type col() :: integer()
   @type oid() :: [integer()]
@@ -69,68 +73,58 @@ defmodule Snmp.Instrumentation do
   end
 
   defmacro __before_compile__(env) do
-    varfuns = env.module |> Module.get_attribute(:varfun)
-    tablefuns = env.module |> Module.get_attribute(:tablefun)
+    variables = env.module |> Module.get_attribute(:variable)
+    tables = env.module |> Module.get_attribute(:table)
 
     env.module
     |> Module.get_attribute(:instrumentation)
-    |> gen_instrumentation(varfuns, tablefuns, env)
+    |> gen_instrumentation(variables, tables, env)
+  end
+
+  @doc false
+  def __after_compile__(env, _bytecode) do
+    missing_varfuns =
+      env.module
+      |> apply(:__mib__, [:varfuns])
+      |> Enum.reject(&Module.defines?(env.module, &1, :def))
+
+    missing_tablefuns =
+      env.module
+      |> apply(:__mib__, [:tablefuns])
+      |> Enum.reject(&Module.defines?(env.module, &1, :def))
+
+    case missing_varfuns ++ missing_tablefuns do
+      [] ->
+        :ok
+
+      missing ->
+        mib_name = apply(env.module, :__mib__, [:name])
+
+        err =
+          """
+          Following instrumentation functions are missing for module #{env.module} (mib #{mib_name}):
+          """ <> (missing |> Enum.map(&"\t* #{elem(&1, 0)}: #{elem(&1, 1)}") |> Enum.join("\n"))
+
+        Mix.shell().error(err)
+        Mix.raise "Error compiling #{env.module}"
+    end
   end
 
   defp gen_instrumentation(_instr, [], [], _env), do: []
 
   defp gen_instrumentation({mod, opts}, varfuns, tablefuns, env) do
     if mod == env.module do
-      [gen_impl(opts)]
+      [gen_impl()]
     else
-      [gen_instrumentation_init(mod, opts)]
-    end ++
-      Enum.map(varfuns, &gen_varfun/1) ++
-      Enum.map(tablefuns, &gen_tablefun/1)
+      [gen_instrumentation_init(mod, opts)] ++
+        Enum.map(varfuns, &gen_varfun/1) ++
+        Enum.map(tablefuns, &gen_tablefun/1)
+    end
   end
 
-  defp gen_impl(opts) do
+  defp gen_impl() do
     quote do
-      @behaviour Snmp.Instrumentation
-
-      @instr_mod __MODULE__
-      @instr_opts unquote(opts)
-
-      @doc false
-      def init(o), do: o
-
-      @doc false
-      def new(_, _), do: :ok
-
-      @doc false
-      def delete(_, _), do: :ok
-
-      @doc false
-      def new_table(_, _), do: :ok
-
-      @doc false
-      def delete_table(_, _), do: :ok
-
-      @doc false
-      def is_set_ok(_, _, _), do: :noError
-
-      @doc false
-      def is_set_ok(_, _, _, _), do: {:noError, 0}
-
-      @doc false
-      def undo(_, _, _), do: :noError
-
-      @doc false
-      def undo(_, _, _, _), do: :noError
-
-      defoverridable new: 2,
-                     delete: 2,
-                     new_table: 2,
-                     delete_table: 2,
-                     is_set_ok: 3,
-                     is_set_ok: 4,
-                     undo: 3,
-                     undo: 4
+      @after_compile Snmp.Instrumentation
     end
   end
 
@@ -142,7 +136,7 @@ defmodule Snmp.Instrumentation do
     end
   end
 
-  defp gen_varfun(varname) do
+  defp gen_varfun(me(aliasname: varname)) do
     quote do
       def unquote(varname)(op) when op in [:new, :delete, :get],
         do: apply(@instr_mod, op, [unquote(varname), @instr_opts])
@@ -152,7 +146,7 @@ defmodule Snmp.Instrumentation do
     end
   end
 
-  defp gen_tablefun(varname) do
+  defp gen_tablefun(me(aliasname: varname)) do
     quote do
       def unquote(varname)(:new),
         do: apply(@instr_mod, :new_table, [unquote(varname), @instr_opts])

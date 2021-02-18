@@ -6,13 +6,6 @@ defmodule Snmp.Mib do
 
   Generates `Snmp.MIB.TextualConvention` modules from enumerations
 
-  # OIDs
-
-  Generates the following functions:
-  * `__oid__/1`: returns OID from name
-  * `__oname__/1`: returns name from OID
-  * `__oids__/0`: returns name/OID full map
-
   # Ranges
 
   Generates `__range__/1`: returns `{low_value, high_value}` from name
@@ -65,8 +58,8 @@ defmodule Snmp.Mib do
       |> Keyword.get(:instrumentation, __CALLER__.module)
       |> Macro.expand(__CALLER__)
       |> case do
-        {mod, opts} -> {mod, opts}
         mod when is_atom(mod) -> {mod, nil}
+        {mod, opts} -> {mod, opts}
       end
 
     name = Keyword.fetch!(opts, :name)
@@ -79,17 +72,17 @@ defmodule Snmp.Mib do
       quote do
         @instrumentation {unquote(instr_mod), unquote(instr_opts)}
 
-        @mibname unquote(name)
+        @mibname :"#{unquote(name)}"
 
-        Module.register_attribute(__MODULE__, :varfun, accumulate: true)
-        Module.register_attribute(__MODULE__, :tablefun, accumulate: true)
+        Module.register_attribute(__MODULE__, :variable, accumulate: true)
+        Module.register_attribute(__MODULE__, :table, accumulate: true)
         Module.register_attribute(__MODULE__, :oid, accumulate: true)
         Module.register_attribute(__MODULE__, :range, accumulate: true)
         Module.register_attribute(__MODULE__, :default, accumulate: true)
         Module.register_attribute(__MODULE__, :enum, accumulate: true)
 
-        @before_compile Snmp.Instrumentation
         @before_compile Snmp.Mib
+        @before_compile Snmp.Instrumentation
       end
     ] ++
       Enum.map(mib(mib, :asn1_types), &parse_asn1_type/1) ++
@@ -97,15 +90,11 @@ defmodule Snmp.Mib do
   end
 
   defmacro __before_compile__(env) do
-    oids = env.module |> Module.get_attribute(:oid) |> Enum.uniq()
     enums = env.module |> Module.get_attribute(:enum)
     ranges = env.module |> Module.get_attribute(:range)
     defaults = env.module |> Module.get_attribute(:default)
 
     Enum.map(enums, &gen_enum(&1, env)) ++
-      Enum.map(oids, &gen_oid/1) ++
-      Enum.map(oids, &gen_oname/1) ++
-      [gen_oids(oids, env)] ++
       Enum.map(ranges, &gen_range/1) ++
       [
         quote do
@@ -117,7 +106,7 @@ defmodule Snmp.Mib do
         quote do
           def __default__(_), do: nil
         end
-      ]
+      ] ++ [gen_mib(env)]
   end
 
   ###
@@ -143,8 +132,8 @@ defmodule Snmp.Mib do
     |> parse_range(me)
     |> parse_default(me)
     |> parse_enum(me)
-    |> parse_varfun(me, env)
-    |> parse_tablefun(me, env)
+    |> parse_variable(me, env)
+    |> parse_table(me, env)
   end
 
   defp parse_oid(ast, me(oid: oid, aliasname: name)) do
@@ -230,12 +219,12 @@ defmodule Snmp.Mib do
 
   defp parse_enum(ast, _), do: ast
 
-  defp parse_varfun(ast, me(entrytype: :variable, mfa: {m, f, _}), env) do
+  defp parse_variable(ast, me(aliasname: name, entrytype: :variable, mfa: {m, _, _}) = e, env) do
     if m == env.module do
       ast ++
         [
           quote do
-            @varfun unquote(f)
+            @variable {unquote(name), unquote(Macro.escape(e))}
           end
         ]
     else
@@ -243,14 +232,14 @@ defmodule Snmp.Mib do
     end
   end
 
-  defp parse_varfun(ast, _, _), do: ast
+  defp parse_variable(ast, _, _), do: ast
 
-  defp parse_tablefun(ast, me(entrytype: :table_entry, mfa: {m, f, _}), env) do
+  defp parse_table(ast, me(aliasname: name, entrytype: :table_entry, mfa: {m, _, _}) = e, env) do
     if m == env.module do
       ast ++
         [
           quote do
-            @tablefun unquote(f)
+            @table {unquote(name), unquote(Macro.escape(e))}
           end
         ]
     else
@@ -258,7 +247,7 @@ defmodule Snmp.Mib do
     end
   end
 
-  defp parse_tablefun(ast, _, _), do: ast
+  defp parse_table(ast, _, _), do: ast
 
   ###
   ### (phase 2) translate module attributes into functions/modules
@@ -272,30 +261,6 @@ defmodule Snmp.Mib do
     end
   end
 
-  defp gen_oid({oid, name}) do
-    quote do
-      def __oid__(unquote(name)), do: unquote(oid)
-    end
-  end
-
-  defp gen_oname({oid, name}) do
-    quote do
-      def __oname__(unquote(oid)), do: unquote(name)
-    end
-  end
-
-  defp gen_oids(oids, env) do
-    mapping =
-      oids
-      |> Macro.expand(env)
-      |> Enum.reduce(%{}, fn {oid, name}, acc -> Map.put(acc, name, oid) end)
-      |> Macro.escape()
-
-    quote do
-      def __oids__, do: unquote(mapping)
-    end
-  end
-
   defp gen_range({name, lo, hi}) do
     quote do
       def __range__(unquote(name)), do: {unquote(lo), unquote(hi)}
@@ -305,6 +270,46 @@ defmodule Snmp.Mib do
   defp gen_default({name, default}) do
     quote do
       def __default__(unquote(name)), do: unquote(default)
+    end
+  end
+
+  defp gen_mib(env) do
+    oids = env.module |> Module.get_attribute(:oid) |> Enum.into(%{})
+    variables = env.module |> Module.get_attribute(:variable) |> Enum.into(%{})
+
+    varfuns =
+      env.module
+      |> Module.get_attribute(:variable)
+      |> Enum.map(& elem(&1, 1))
+      |> Enum.flat_map(fn
+        me(mfa: {_, _f, _}, access: :"not-accessible") -> []
+        me(mfa: {_, f, _}, access: :"read-only") -> [{f, 1}]
+        me(mfa: {_, f, _}, access: :"read-write") -> [{f, 1}, {f, 2}]
+      end)
+
+    tablefuns =
+      env.module
+      |> Module.get_attribute(:table)
+      |> Enum.map(& elem(&1, 1))
+      |> Enum.flat_map(fn
+        me(mfa: {_, _f, _}, access: :"not-accessible") -> []
+        me(mfa: {_, f, _}, access: :"read-only") -> [{f, 3}]
+        me(mfa: {_, f, _}, access: :"read-write") -> [{f, 3}]
+        me(mfa: {_, f, _}, access: :"read-create") -> [{f, 3}]
+      end)
+
+    mibname = env.module |> Module.get_attribute(:mibname)
+
+    quote do
+      def __mib__(:oids), do: unquote(Macro.escape(oids))
+
+      def __mib__(:variables), do: unquote(Macro.escape(variables))
+
+      def __mib__(:varfuns), do: unquote(Macro.escape(varfuns))
+
+      def __mib__(:tablefuns), do: unquote(Macro.escape(tablefuns))
+
+      def __mib__(:name), do: unquote(Macro.escape(mibname))
     end
   end
 end

@@ -40,7 +40,7 @@ defmodule Snmp.Compiler do
   """
   @spec mib(String.Chars.t(), Options.t()) :: {:ok, Mib.t()} | {:error, term()}
   def mib(name, opts) do
-    src = Path.join(opts.srcdir, "#{name}" <> ".mib")
+    src = find_mib(opts, "#{name}" <> ".mib")
 
     with {:ok, [dest]} <- run([src], opts) do
       :snmpc_misc.read_mib('#{dest}')
@@ -108,5 +108,11 @@ defmodule Snmp.Compiler do
     else
       acc
     end
+  end
+
+  defp find_mib(opts, filename) do
+    [opts.srcdir, Application.app_dir(:snmp, "mibs")]
+    |> Enum.map(&Path.join(&1, filename))
+    |> Enum.find(&File.exists?/1)
   end
 end
