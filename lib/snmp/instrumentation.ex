@@ -6,6 +6,8 @@ defmodule Snmp.Instrumentation do
 
   Record.defrecord(:me, Record.extract(:me, from_lib: "snmp/include/snmp_types.hrl"))
 
+  @callback build_extra(varname :: atom(), any()) :: any()
+
   @type row_index :: [integer()]
   @type col() :: integer()
   @type oid() :: [integer()]
@@ -20,55 +22,14 @@ defmodule Snmp.Instrumentation do
   @type undo_err :: :undoFailed
   @type set_err :: :commitFailed | :undoFailed
 
-  @callback init(any()) :: any()
-
-  @callback new(varname(), any()) :: :ok
-
-  @callback delete(varname(), any()) :: :ok
-
-  @callback new_table(varname(), any()) :: :ok
-
-  @callback delete_table(varname(), any()) :: :ok
-
-  @callback get(varname(), any()) :: get_ret() | gen_err()
-
-  @callback get(varname(), row_index(), [col()], any()) :: [get_ret()] | get_err() | gen_err()
-
-  @callback get_next(varname(), row_index(), [col()], any()) ::
-              [{oid(), term()} | :endOfTable] | {:genErr, integer()}
-
-  @callback is_set_ok(varname(), term(), any()) :: is_set_ok_ret() | gen_err()
-
-  @callback is_set_ok(varname(), row_index(), [{col(), term()}], any()) ::
-              {:noError, 0} | {is_set_ok_err(), col()}
-
-  @callback undo(varname(), term(), any()) :: :noError | undo_err() | gen_err()
-
-  @callback undo(varname(), row_index(), [{col(), term()}], any()) ::
-              {:noError, 0} | {undo_err(), col()}
-
-  @callback set(varname(), term(), any()) :: :noError | set_err() | gen_err()
-
-  @callback set(varname(), row_index(), [{col(), term()}], any()) ::
-              {:noError, 0} | {set_err(), col()}
-
-  @optional_callbacks new: 2,
-                      delete: 2,
-                      new_table: 2,
-                      delete_table: 2,
-                      is_set_ok: 3,
-                      is_set_ok: 4,
-                      undo: 3,
-                      undo: 4
-
   defmacro __using__(_opts) do
     quote do
       @behaviour Snmp.Instrumentation
 
-      @doc false
-      def init(s), do: s
+      @impl Snmp.Instrumentation
+      def build_extra(varname, opts), do: {varname, opts}
 
-      defoverridable init: 1
+      defoverridable build_extra: 2
     end
   end
 
@@ -102,11 +63,13 @@ defmodule Snmp.Instrumentation do
 
         err =
           """
-          Following instrumentation functions are missing for module #{env.module} (mib #{mib_name}):
+          Following instrumentation functions are missing for module #{env.module} (mib #{
+            mib_name
+          }):
           """ <> (missing |> Enum.map(&"\t* #{elem(&1, 0)}: #{elem(&1, 1)}") |> Enum.join("\n"))
 
         Mix.shell().error(err)
-        Mix.raise "Error compiling #{env.module}"
+        Mix.raise("Error compiling #{env.module}")
     end
   end
 
@@ -132,34 +95,31 @@ defmodule Snmp.Instrumentation do
     quote do
       require unquote(mod)
       @instr_mod unquote(mod)
-      @instr_opts apply(unquote(mod), :init, [unquote(opts)])
+      @instr_opts unquote(opts)
     end
   end
 
-  defp gen_varfun(me(aliasname: varname)) do
-    quote do
-      def unquote(varname)(op) when op in [:new, :delete, :get],
-        do: apply(@instr_mod, op, [unquote(varname), @instr_opts])
+  defp gen_varfun({varname, _}) do
+    quote bind_quoted: [varname: varname] do
+      extra = apply(@instr_mod, :build_extra, [varname, @instr_opts])
 
-      def unquote(varname)(op, val) when op in [:is_set_ok, :undo, :set],
-        do: apply(@instr_mod, op, [unquote(varname), val, @instr_opts])
+      def unquote(Macro.escape(varname))(op),
+        do: apply(@instr_mod, :variable_func, [op, unquote(extra)])
+
+      def unquote(Macro.escape(varname))(op, val),
+        do: apply(@instr_mod, op, [val, unquote(extra)])
     end
   end
 
-  defp gen_tablefun(me(aliasname: varname)) do
-    quote do
-      def unquote(varname)(:new),
-        do: apply(@instr_mod, :new_table, [unquote(varname), @instr_opts])
+  defp gen_tablefun({tablename, _}) do
+    quote bind_quoted: [tablename: tablename] do
+      extra = apply(@instr_mod, :build_extra, [tablename, @instr_opts])
 
-      def unquote(varname)(:delete),
-        do: apply(@instr_mod, :delete_table, [unquote(varname), @instr_opts])
+      def unquote(Macro.escape(tablename))(op),
+        do: apply(@instr_mod, :table_func, [op, unquote(extra)])
 
-      def unquote(varname)(:get),
-        do: apply(@instr_mod, :get, [unquote(varname), @instr_opts])
-
-      def unquote(varname)(op, row_index, cols)
-          when op in [:get, :get_next, :is_set_ok, :undo, :set],
-          do: apply(@instr_mod, op, [unquote(varname), row_index, cols, @instr_opts])
+      def unquote(Macro.escape(tablename))(op, row_index, cols),
+        do: apply(@instr_mod, :table_func, [op, row_index, cols, unquote(extra)])
     end
   end
 end

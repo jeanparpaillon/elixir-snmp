@@ -64,7 +64,7 @@ defmodule Snmp.Mib do
 
     name = Keyword.fetch!(opts, :name)
     opts = Compiler.Options.from_project()
-    opts = %{opts | extra_opts: [{:module, instr_mod} | opts.extra_opts], force: true}
+    opts = %{opts | extra_opts: [{:module, __CALLER__.module} | opts.extra_opts], force: true}
 
     {:ok, mib} = Compiler.mib(name, opts)
 
@@ -219,32 +219,24 @@ defmodule Snmp.Mib do
 
   defp parse_enum(ast, _), do: ast
 
-  defp parse_variable(ast, me(aliasname: name, entrytype: :variable, mfa: {m, _, _}) = e, env) do
-    if m == env.module do
-      ast ++
-        [
-          quote do
-            @variable {unquote(name), unquote(Macro.escape(e))}
-          end
-        ]
-    else
-      []
-    end
+  defp parse_variable(ast, me(aliasname: name, entrytype: :variable) = e, _env) do
+    ast ++
+      [
+        quote do
+          @variable {unquote(name), unquote(Macro.escape(e))}
+        end
+      ]
   end
 
   defp parse_variable(ast, _, _), do: ast
 
-  defp parse_table(ast, me(aliasname: name, entrytype: :table_entry, mfa: {m, _, _}) = e, env) do
-    if m == env.module do
-      ast ++
-        [
-          quote do
-            @table {unquote(name), unquote(Macro.escape(e))}
-          end
-        ]
-    else
-      ast
-    end
+  defp parse_table(ast, me(aliasname: name, entrytype: :table) = e, _env) do
+    ast ++
+      [
+        quote do
+          @table {unquote(name), unquote(Macro.escape(e))}
+        end
+      ]
   end
 
   defp parse_table(ast, _, _), do: ast
@@ -274,7 +266,13 @@ defmodule Snmp.Mib do
   end
 
   defp gen_mib(env) do
-    oids = env.module |> Module.get_attribute(:oid, []) |> Enum.into(%{})
+    oids =
+      env.module
+      |> Module.get_attribute(:oid, [])
+      |> Enum.reduce(%{}, fn {oid, name}, acc ->
+        Map.put(acc, name, oid)
+      end)
+
     variables = env.module |> Module.get_attribute(:variable, []) |> Enum.into(%{})
 
     varfuns =
@@ -287,7 +285,7 @@ defmodule Snmp.Mib do
       env.module
       |> Module.get_attribute(:table, [])
       |> Enum.map(&elem(&1, 1))
-      |> Enum.flat_map(fn me(mfa: {_, f, _}) -> [{f, 1}, {f, 3}] end)
+      |> Enum.flat_map(fn me(aliasname: aliasname) -> [{aliasname, 1}, {aliasname, 3}] end)
 
     mibname = env.module |> Module.get_attribute(:mib_name)
     extra = env.module |> Module.get_attribute(:mib_extra, [])
