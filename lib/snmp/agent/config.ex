@@ -2,6 +2,8 @@ defmodule Snmp.Agent.Config do
   @moduledoc """
   Handle agent configuration
   """
+  alias Snmp.Transport
+
   @type t :: map()
 
   @dbdir "priv/snmp/agent/db"
@@ -13,7 +15,7 @@ defmodule Snmp.Agent.Config do
 
   @default_port 4000
 
-  @default_transports [{0, 0, 0, 0}, {0, 0, 0, 0, 0, 0, 0, 0}]
+  @default_transports ["127.0.0.1", "::1"]
 
   @default_agent_env [
     versions: [:v1, :v2],
@@ -207,6 +209,7 @@ defmodule Snmp.Agent.Config do
   end
 
   defp commit(s) do
+    IO.inspect(s, label: "CONF")
     :ok = Application.put_env(:snmp, :agent, Map.get(s, :agent_env))
 
     @configs
