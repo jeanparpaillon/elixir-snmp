@@ -43,12 +43,12 @@ defmodule Snmp.Agent.Config do
   @configs [
     agent_conf: "agent.conf",
     context_conf: "context.conf",
-    #community_conf: "community.conf",
-    #vacm_conf: "vacm.conf",
-    #usm_conf: "usm.conf",
-    #notify_conf: "notify.conf",
-    #target_conf: "target_addr.conf",
-    #target_params_conf: "target_params.conf"
+    community_conf: "community.conf",
+    vacm_conf: "vacm.conf",
+    usm_conf: "usm.conf",
+    notify_conf: "notify.conf",
+    target_conf: "target_addr.conf",
+    target_params_conf: "target_params.conf"
   ]
 
   @doc """
@@ -103,10 +103,10 @@ defmodule Snmp.Agent.Config do
     |> when_valid?(&agent_conf/1)
     |> when_valid?(&context_conf/1)
     |> when_valid?(&community_conf/1)
-    #|> when_valid?(&vacm_conf/1)
-    #|> when_valid?(&usm_conf/1)
-    #|> when_valid?(&notify_conf/1)
-    #|> when_valid?(&target_conf/1)
+    |> when_valid?(&vacm_conf/1)
+    |> when_valid?(&usm_conf/1)
+    |> when_valid?(&notify_conf/1)
+    |> when_valid?(&target_conf/1)
     |> when_valid?(&commit/1)
   end
 
@@ -169,90 +169,42 @@ defmodule Snmp.Agent.Config do
   end
 
   defp community_conf(s) do
-    community = [
-      {'public', 'public', @public_sec, '', ''},
-      {'private', 'private', @private_sec, '', ''},
-      {'trap', 'trap', @trap_sec, '', ''}
-    ]
+    # TODO
+    community = []
 
     s
     |> Map.put(:community_conf, community)
   end
 
-  # defp vacm_conf(s) do
-  #   vacm_conf = [
-  #     {:vacmSecurityToGroup, :usm, @public_sec, @public_group},
-  #     {:vacmSecurityToGroup, :usm, @private_sec, @private_group},
-  #     {:vacmSecurityToGroup, :v2c, @public_sec, @public_group},
-  #     {:vacmSecurityToGroup, :v2c, @private_sec, @private_group},
-  #     {:vacmSecurityToGroup, :v1, @public_sec, @public_group},
-  #     {:vacmSecurityToGroup, :v1, @private_sec, @private_group},
-  #     {:vacmAccess, @public_group, '', :v1, :noAuthNoPriv, :exact, 'internet', '', 'restricted'},
-  #     {:vacmAccess, @public_group, '', :v2c, :noAuthNoPriv, :exact, 'internet', '', 'restricted'},
-  #     {:vacmAccess, @public_group, '', :usm, :noAuthNoPriv, :exact, 'internet', '', 'restricted'},
-  #     {:vacmAccess, @private_group, '', :v1, :noAuthNoPriv, :exact, 'restricted', 'restricted',
-  #      'restricted'},
-  #     {:vacmAccess, @private_group, '', :v2c, :noAuthNoPriv, :exact, 'restricted', 'restricted',
-  #      'restricted'},
-  #     {:vacmAccess, @private_group, '', :usm, :authNoPriv, :exact, 'restricted', 'restricted',
-  #      'restricted'},
-  #     {:vacmAccess, @private_group, '', :v1, :noAuthNoPriv, :exact, 'restricted', 'restricted',
-  #      'restricted'},
-  #     {:vacmAccess, @private_group, '', :v2c, :noAuthNoPriv, :exact, 'restricted', 'restricted',
-  #      'restricted'},
-  #     {:vacmAccess, @private_group, '', :usm, :authPriv, :exact, 'restricted', 'restricted',
-  #      'restricted'},
-  #     {:vacmViewTreeFamily, 'internet', [1, 3, 6, 1, 2, 1], :included, :null},
-  #     {:vacmViewTreeFamily, 'restricted', [1, 3, 6, 1], :included, :null}
-  #   ]
+  defp vacm_conf(s) do
+    vacm_conf = []
 
-  #   s
-  #   |> put_config(:vacm_conf, vacm_conf)
-  # end
+    s
+    |> Map.put(:vacm_conf, vacm_conf)
+  end
 
-  # defp usm_conf(s) do
-  #   usm_conf = [
-  #     {'agent', '', 'publicSec', :zeroDotZero, :usmNoAuthProtocol, '', '', :usmNoPrivProtocol, '',
-  #      '', '', '', ''},
-  #     {'agent', 'admin', 'privateSec', :zeroDotZero, :usmHMACMD5AuthProtocol, '', '',
-  #      :usmNoPrivProtocol, '', '', '',
-  #      [69, 162, 150, 62, 179, 98, 234, 173, 133, 128, 124, 29, 219, 216, 70, 165], ''}
-  #   ]
+  defp usm_conf(s) do
+    usm_conf = []
 
-  #   s
-  #   |> put_config(:usm_conf, usm_conf)
-  # end
+    s
+    |> Map.put(:usm_conf, usm_conf)
+  end
 
-  # defp notify_conf(s) do
-  #   notify_conf = [
-  #     {'target1_v1', @notify_tag, :trap},
-  #     {'target1_v2', @notify_tag, :trap},
-  #     {'target1_v3', @notify_tag, :trap},
-  #     {'target2_v1', @notify_tag, :trap},
-  #     {'target2_v2', @notify_tag, :trap},
-  #     {'target2_v3', @notify_tag, :trap},
-  #     {'target3_v1', @notify_tag, :trap},
-  #     {'target3_v2', @notify_tag, :trap},
-  #     {'target3_v3', @notify_tag, :trap}
-  #   ]
+  defp notify_conf(s) do
+    notify_conf = []
 
-  #   s
-  #   |> put_config(:notify_conf, notify_conf)
-  # end
+    s
+    |> Map.put(:notify_conf, notify_conf)
+  end
 
-  # defp target_conf(s) do
-  #   target_conf = []
+  defp target_conf(s) do
+    target_conf = []
+    target_params_conf = []
 
-  #   target_params_conf = [
-  #     {'target_v1', :v1, :v1, @public_sec, :noAuthNoPriv},
-  #     {'target_v2', :v2c, :v2c, @public_sec, :noAuthNoPriv},
-  #     {'target_v3', :v3, :usm, @public_sec, :noAuthNoPriv}
-  #   ]
-
-  #   s
-  #   |> put_config(:target_conf, target_conf)
-  #   |> put_config(:target_params_conf, target_params_conf)
-  # end
+    s
+    |> Map.put(:target_conf, target_conf)
+    |> Map.put(:target_params_conf, target_params_conf)
+  end
 
   defp commit(s) do
     :ok = Application.put_env(:snmp, :agent, Map.get(s, :agent_env))
