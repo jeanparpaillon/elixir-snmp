@@ -140,8 +140,8 @@ defmodule Snmp.Agent.Config do
       |> Application.get_env(s.handler, [])
       |> Keyword.get(:transports, [])
       |> case do
-        [] -> Enum.map(@default_transports, &cast_address/1)
-        addresses -> Enum.map(addresses, &cast_address/1)
+        [] -> Enum.map(@default_transports, &Transport.config/1)
+        transports -> Enum.map(transports, &Transport.config/1)
       end
 
     framework_conf =
@@ -254,15 +254,6 @@ defmodule Snmp.Agent.Config do
   defp when_valid?(%{errors: []} = s, fun), do: fun.(s)
 
   defp when_valid?(s, _fun), do: s
-
-  defp cast_address(a) when is_binary(a) do
-    {:ok, addr} = :inet.parse_address(to_charlist(a))
-    cast_address(addr)
-  end
-
-  defp cast_address({_, _, _, _} = a), do: {:transportDomainUdpIpv4, a}
-
-  defp cast_address({_, _, _, _, _, _, _, _} = a), do: {:transportDomainUdpIpv6, a}
 
   defp mib_mod(s, name) do
     s.handler
