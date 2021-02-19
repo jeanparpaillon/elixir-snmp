@@ -80,8 +80,8 @@ defmodule Snmp.Instrumentation do
       [gen_impl()]
     else
       [gen_instrumentation_init(mod, opts)] ++
-        Enum.map(varfuns, &gen_varfun/1) ++
-        Enum.map(tablefuns, &gen_tablefun/1)
+        Enum.map(varfuns, &gen_varfun(&1, env)) ++
+        Enum.map(tablefuns, &gen_tablefun(&1, env))
     end
   end
 
@@ -99,27 +99,55 @@ defmodule Snmp.Instrumentation do
     end
   end
 
-  defp gen_varfun({varname, _}) do
-    quote bind_quoted: [varname: varname] do
-      extra = apply(@instr_mod, :build_extra, [varname, @instr_opts])
+  defp gen_varfun({varname, _}, env) do
+    []
+    |> if_not_defined(
+      {env.module, {varname, 1}},
+      quote bind_quoted: [varname: varname] do
+        extra = apply(@instr_mod, :build_extra, [varname, @instr_opts])
 
-      def unquote(Macro.escape(varname))(op),
-        do: apply(@instr_mod, :variable_func, [op, unquote(extra)])
+        def unquote(Macro.escape(varname))(op),
+          do: apply(@instr_mod, :variable_func, [op, unquote(extra)])
+      end
+    )
+    |> if_not_defined(
+      {env.module, {varname, 2}},
+      quote bind_quoted: [varname: varname] do
+        extra = apply(@instr_mod, :build_extra, [varname, @instr_opts])
 
-      def unquote(Macro.escape(varname))(op, val),
-        do: apply(@instr_mod, op, [val, unquote(extra)])
-    end
+        def unquote(Macro.escape(varname))(op, val),
+          do: apply(@instr_mod, op, [val, unquote(extra)])
+      end
+    )
   end
 
-  defp gen_tablefun({tablename, _}) do
-    quote bind_quoted: [tablename: tablename] do
-      extra = apply(@instr_mod, :build_extra, [tablename, @instr_opts])
+  defp gen_tablefun({tablename, _}, env) do
+    []
+    |> if_not_defined(
+      {env.module, {tablename, 1}},
+      quote bind_quoted: [tablename: tablename] do
+        extra = apply(@instr_mod, :build_extra, [tablename, @instr_opts])
 
-      def unquote(Macro.escape(tablename))(op),
-        do: apply(@instr_mod, :table_func, [op, unquote(extra)])
+        def unquote(Macro.escape(tablename))(op),
+          do: apply(@instr_mod, :table_func, [op, unquote(extra)])
+      end
+    )
+    |> if_not_defined(
+      {env.module, {tablename, 3}},
+      quote bind_quoted: [tablename: tablename] do
+        extra = apply(@instr_mod, :build_extra, [tablename, @instr_opts])
 
-      def unquote(Macro.escape(tablename))(op, row_index, cols),
-        do: apply(@instr_mod, :table_func, [op, row_index, cols, unquote(extra)])
+        def unquote(Macro.escape(tablename))(op, row_index, cols),
+          do: apply(@instr_mod, :table_func, [op, row_index, cols, unquote(extra)])
+      end
+    )
+  end
+
+  defp if_not_defined(acc, {mod, fun}, ast) do
+    if Module.defines?(mod, fun) do
+      acc
+    else
+      acc ++ [ast]
     end
   end
 end
