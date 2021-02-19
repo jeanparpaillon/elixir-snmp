@@ -7,6 +7,8 @@ defmodule Snmp.Agent.Config do
   @dbdir "priv/snmp/agent/db"
   @confdir "priv/snmp/agent/conf"
 
+  @default_mibs ~w(STANDARD-MIB SNMPv2 SNMP-FRAMEWORK-MIB SNMP-MPD-MIB)a
+
   @default_context ''
 
   @default_port 4000
@@ -119,7 +121,8 @@ defmodule Snmp.Agent.Config do
       |> Keyword.merge(
         db_dir: db_dir(s.otp_app),
         config: [dir: conf_dir(s.otp_app)],
-        agent_verbosity: Map.fetch!(s, :verbosity)
+        agent_verbosity: Map.fetch!(s, :verbosity),
+        mibs: initial_mibs(s)
       )
 
     net_if_env =
@@ -313,5 +316,35 @@ defmodule Snmp.Agent.Config do
     s.handler
     |> apply(:__agent__, [:mibs])
     |> Map.get(name)
+  end
+
+  defp initial_mibs(s) do
+    mibs_paths = mibs_paths(s)
+
+    s.handler
+    |> apply(:__agent__, [:mibs])
+    |> Enum.reject(& elem(&1, 0) in @default_mibs)
+    |> Enum.map(fn {name, _module} ->
+      find_path(mibs_paths, "#{name}.bin")
+    end)
+    |> Enum.filter(& &1)
+    |> Enum.map(&to_charlist/1)
+  end
+
+  defp find_path(paths, path) do
+    paths
+    |> Enum.map(&Path.join(&1, path))
+    |> Enum.find(&File.exists?/1)
+  end
+
+  defp mibs_paths(s) do
+    s.otp_app
+    |> Application.get_env(s.handler, [])
+    |> Keyword.get(:mibs_paths, [])
+    |> Kernel.++([{s.otp_app, "priv/mibs"}, {:snmp, "priv/mibs"}])
+    |> Enum.map(fn
+      {app, dir} -> Application.app_dir(app, dir)
+      dir when is_binary(dir) -> dir
+    end)
   end
 end
