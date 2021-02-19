@@ -1,6 +1,6 @@
-defmodule Snmp.Mib.Standard do
+defmodule Snmp.Mib.Framework do
   @moduledoc """
-  Helper for implementing STANDARD-MIB
+  Helper for implementing SNMP-FRAMEWORK-MIB
   """
   alias Snmp.Agent
 
@@ -16,19 +16,20 @@ defmodule Snmp.Mib.Standard do
           {k, v} -> {k, v}
         end)
 
-      ([:sysObjectID, :sysServices, :snmpEnableAuthenTraps] -- Keyword.keys(conf))
+      ([:snmpEngineID, :snmpEngineMaxMessageSize] -- Keyword.keys(conf))
       |> case do
         [] ->
           :ok
 
         missing ->
-          err = "Missing mandatory variables for STANDARD-MIB:" <> Enum.join(missing, " ")
+          err = "Missing mandatory variables for FRAMEWORK-MIB:" <> Enum.join(missing, " ")
           Mix.raise(err)
       end
 
       Agent.Config.write_config(unquote(app), "standard.conf", conf, true)
 
-      @mib_name :"STANDARD-MIB"
+
+      @mib_name :"SNMP-FRAMEWORK-MIB"
       @mib_extra config: conf
 
       @before_compile Snmp.Mib

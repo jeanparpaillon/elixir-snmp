@@ -72,7 +72,7 @@ defmodule Snmp.Mib do
       quote do
         @instrumentation {unquote(instr_mod), unquote(instr_opts)}
 
-        @mibname :"#{unquote(name)}"
+        @mib_name :"#{unquote(name)}"
 
         Module.register_attribute(__MODULE__, :variable, accumulate: true)
         Module.register_attribute(__MODULE__, :table, accumulate: true)
@@ -90,9 +90,9 @@ defmodule Snmp.Mib do
   end
 
   defmacro __before_compile__(env) do
-    enums = env.module |> Module.get_attribute(:enum)
-    ranges = env.module |> Module.get_attribute(:range)
-    defaults = env.module |> Module.get_attribute(:default)
+    enums = env.module |> Module.get_attribute(:enum, [])
+    ranges = env.module |> Module.get_attribute(:range, [])
+    defaults = env.module |> Module.get_attribute(:default, [])
 
     Enum.map(enums, &gen_enum(&1, env)) ++
       Enum.map(ranges, &gen_range/1) ++
@@ -274,42 +274,41 @@ defmodule Snmp.Mib do
   end
 
   defp gen_mib(env) do
-    oids = env.module |> Module.get_attribute(:oid) |> Enum.into(%{})
-    variables = env.module |> Module.get_attribute(:variable) |> Enum.into(%{})
+    oids = env.module |> Module.get_attribute(:oid, []) |> Enum.into(%{})
+    variables = env.module |> Module.get_attribute(:variable, []) |> Enum.into(%{})
 
     varfuns =
       env.module
-      |> Module.get_attribute(:variable)
-      |> Enum.map(& elem(&1, 1))
-      |> Enum.flat_map(fn
-        me(mfa: {_, _f, _}, access: :"not-accessible") -> []
-        me(mfa: {_, f, _}, access: :"read-only") -> [{f, 1}]
-        me(mfa: {_, f, _}, access: :"read-write") -> [{f, 1}, {f, 2}]
-      end)
+      |> Module.get_attribute(:variable, [])
+      |> Enum.map(&elem(&1, 1))
+      |> Enum.flat_map(fn me(mfa: {_, f, _}) -> [{f, 1}, {f, 2}] end)
 
     tablefuns =
       env.module
-      |> Module.get_attribute(:table)
-      |> Enum.map(& elem(&1, 1))
-      |> Enum.flat_map(fn
-        me(mfa: {_, _f, _}, access: :"not-accessible") -> []
-        me(mfa: {_, f, _}, access: :"read-only") -> [{f, 3}]
-        me(mfa: {_, f, _}, access: :"read-write") -> [{f, 3}]
-        me(mfa: {_, f, _}, access: :"read-create") -> [{f, 3}]
+      |> Module.get_attribute(:table, [])
+      |> Enum.map(&elem(&1, 1))
+      |> Enum.flat_map(fn me(mfa: {_, f, _}) -> [{f, 1}, {f, 3}] end)
+
+    mibname = env.module |> Module.get_attribute(:mib_name)
+    extra = env.module |> Module.get_attribute(:mib_extra, [])
+
+    [
+      quote do
+        def __mib__(:oids), do: unquote(Macro.escape(oids))
+
+        def __mib__(:variables), do: unquote(Macro.escape(variables))
+
+        def __mib__(:varfuns), do: unquote(Macro.escape(varfuns))
+
+        def __mib__(:tablefuns), do: unquote(Macro.escape(tablefuns))
+
+        def __mib__(:name), do: unquote(Macro.escape(mibname))
+      end
+    ] ++
+      Enum.map(extra, fn {key, value} ->
+        quote do
+          def __mib__(unquote(key)), do: unquote(value)
+        end
       end)
-
-    mibname = env.module |> Module.get_attribute(:mibname)
-
-    quote do
-      def __mib__(:oids), do: unquote(Macro.escape(oids))
-
-      def __mib__(:variables), do: unquote(Macro.escape(variables))
-
-      def __mib__(:varfuns), do: unquote(Macro.escape(varfuns))
-
-      def __mib__(:tablefuns), do: unquote(Macro.escape(tablefuns))
-
-      def __mib__(:name), do: unquote(Macro.escape(mibname))
-    end
   end
 end
