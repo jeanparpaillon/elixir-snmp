@@ -171,8 +171,14 @@ defmodule Snmp.Agent.Config do
   end
 
   defp community_conf(s) do
-    # TODO
-    community = []
+    versions = versions(s)
+
+    community =
+    if :v1 in versions or :v2 in versions do
+      []
+    else
+      []
+    end
 
     s
     |> Map.put(:community_conf, community)
@@ -292,5 +298,11 @@ defmodule Snmp.Agent.Config do
       {app, dir} -> Application.app_dir(app, dir)
       dir when is_binary(dir) -> dir
     end)
+  end
+
+  defp versions(s) do
+    s
+    |> Map.get(:agent_env, [])
+    |> Keyword.get(:versions, [])
   end
 end

@@ -5,10 +5,10 @@ defmodule Snmp.Agent.DSL do
 
   @doc false
   defmacro __using__(_opts) do
-    quote do
-      import Snmp.Agent.DSL
+    Module.register_attribute(__CALLER__.module, :mib, accumulate: true)
 
-      Module.register_attribute(__MODULE__, :mib, accumulate: true)
+    quote do
+      import unquote(__MODULE__), only: :macros
     end
   end
 
