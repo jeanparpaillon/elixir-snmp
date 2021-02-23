@@ -24,35 +24,20 @@ defmodule Snmp.Agent.Handler do
   end
 
   defmacro __before_compile__(env) do
-    mib_mods = env.module |> Module.get_attribute(:mib, [])
-
-    mib_mods
-    |> Enum.reject(&Kernel.function_exported?(&1, :__mib__, 1))
-    |> case do
-      [] ->
-        :ok
-
-      invalid ->
-        Mix.raise("The following modules do not implement a MIB: " <> Enum.join(invalid, " "))
-    end
-
     mibs =
-      mib_mods
-      |> Enum.map(&{apply(&1, :__mib__, [:name]), &1})
-      |> Enum.into(%{})
+      env.module
+      |> Module.get_attribute(:mib, [])
+      |> Enum.map(fn [module: mod] ->
+        apply(mod, :__mib__, [:name])
+      end)
 
-    (@mandatory_mibs -- Map.keys(mibs))
+    (@mandatory_mibs -- mibs)
     |> case do
       [] ->
         :ok
 
       missing ->
         Mix.raise("Missing mandatory MIBs for SNMP agent: " <> Enum.join(missing, " "))
-    end
-
-    quote do
-      def __agent__(:mibs), do: unquote(Macro.escape(mibs))
-      def __agent__(:app), do: @otp_app
     end
   end
 end
