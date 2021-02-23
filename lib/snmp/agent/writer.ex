@@ -8,10 +8,12 @@ defmodule Snmp.Agent.Writer do
       |> build_mibs()
 
     views = Module.get_attribute(env.module, :view, [])
+    accesses = Module.get_attribute(env.module, :access, [])
 
     quote do
       def __agent__(:mibs), do: unquote(Macro.escape(mibs))
       def __agent__(:views), do: unquote(Macro.escape(views))
+      def __agent__(:accesses), do: unquote(Macro.escape(accesses))
       def __agent__(:app), do: @otp_app
     end
   end

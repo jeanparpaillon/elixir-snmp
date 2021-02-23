@@ -10,6 +10,7 @@ defmodule Snmp.Agent.DSL do
   defmacro __using__(_opts) do
     Module.register_attribute(__CALLER__.module, :mib, accumulate: true)
     Module.register_attribute(__CALLER__.module, :view, accumulate: true)
+    Module.register_attribute(__CALLER__.module, :access, accumulate: true)
 
     quote do
       import unquote(__MODULE__), only: :macros
@@ -70,6 +71,25 @@ defmodule Snmp.Agent.DSL do
     nil
   end
 
+  @placement {:access, [toplevel: true]}
+  @doc """
+  Declares an access
+  """
+  defmacro access(name, opts) do
+    opts =
+      opts
+      |> Enum.map(fn {key, ast} ->
+        {key, Macro.expand(ast, __CALLER__)}
+      end)
+      |> Keyword.merge(name: name)
+
+    __CALLER__
+    |> scope!(:access, @placement[:access])
+    |> scope(:access, opts)
+
+    nil
+  end
+
   def scope(env, kind, attrs, block \\ [])
 
   def scope(env, :include, [oid: oid], _block) do
@@ -101,6 +121,15 @@ defmodule Snmp.Agent.DSL do
     |> Vacm.tree_families()
     |> Enum.map(&Module.put_attribute(env.module, :view, &1))
 
+    Scope.close(env.module)
+  end
+
+  defp close_scope(env, :access, _attrs) do
+    %{attrs: attrs} = Scope.current(env.module)
+
+    attrs
+    |> Vacm.accesses()
+    |> Enum.map(&Module.put_attribute(env.module, :access, &1))
     Scope.close(env.module)
   end
 
