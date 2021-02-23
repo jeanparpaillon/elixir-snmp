@@ -4,10 +4,12 @@ defmodule Snmp.Agent.DSL do
   """
   alias Snmp.Agent.Error
   alias Snmp.Agent.Scope
+  alias Snmp.Mib.Vacm
 
   @doc false
   defmacro __using__(_opts) do
     Module.register_attribute(__CALLER__.module, :mib, accumulate: true)
+    Module.register_attribute(__CALLER__.module, :view, accumulate: true)
 
     quote do
       import unquote(__MODULE__), only: :macros
@@ -25,38 +27,80 @@ defmodule Snmp.Agent.DSL do
   defmacro mib(module) do
     __CALLER__
     |> scope!(:mib, @placement[:mib])
-    |> scope(:mib, module: module)
+    |> scope(:mib, module: Macro.expand(module, __CALLER__))
 
     quote do
       require unquote(module)
     end
   end
 
-  # @doc """
-  # Declares a view (see `SNMP-VIEW-BASED-ACM-MIB`)
-  # """
-  # defmacro view(name, do: block) do
-  #   quote do
-  #     @view
-  #   end
-  # end
+  @placement {:view, [toplevel: true]}
+  @doc """
+  Declares a view (see `SNMP-VIEW-BASED-ACM-MIB`)
+  """
+  defmacro view(name, do: block) do
+    __CALLER__
+    |> scope!(:view, @placement[:view])
+    |> scope(:view, [name: Macro.expand(name, __CALLER__)], block)
 
-  def scope(env, kind, attrs) do
-    open_scope(env, kind, attrs)
+    nil
+  end
+
+  @placement {:include, [under: [:view]]}
+  @doc """
+  Declares an included subtree in a view
+  """
+  defmacro include(oid) do
+    __CALLER__
+    |> scope!(:include, @placement[:include])
+    |> scope(:include, oid: Macro.expand(oid, __CALLER__))
+
+    nil
+  end
+
+  @placement {:exclude, [under: [:view]]}
+  @doc """
+  Declares an excluded subtree in a view
+  """
+  defmacro exclude(oid) do
+    __CALLER__
+    |> scope!(:exclude, @placement[:exclude])
+    |> scope(:exclude, oid: Macro.expand(oid, __CALLER__))
+
+    nil
+  end
+
+  def scope(env, kind, attrs, block \\ [])
+
+  def scope(env, :include, [oid: oid], _block) do
+    Scope.put_attribute(env.module, :include, oid, accumulate: true)
+  end
+
+  def scope(env, :exclude, [oid: oid], _block) do
+    Scope.put_attribute(env.module, :exclude, oid, accumulate: true)
+  end
+
+  def scope(env, kind, attrs, block) do
+    Scope.open(kind, env.module, attrs)
+
+    block
+    |> Macro.prewalk(&Macro.expand(&1, env))
+
     close_scope(env, kind, attrs)
   end
 
-  defp open_scope(env, kind, attrs) do
-    Scope.open(kind, env.module, attrs)
+  defp close_scope(env, :mib, attrs) do
+    Module.put_attribute(env.module, :mib, attrs)
+    Scope.close(env.module)
   end
 
-  defp close_scope(env, :mib, attrs) do
-    attrs =
-      attrs
-      |> Enum.map(fn {key, ast} ->
-        {key, Macro.expand(ast, env)}
-      end)
-    Module.put_attribute(env.module, :mib, attrs)
+  defp close_scope(env, :view, _attrs) do
+    %{attrs: attrs} = Scope.current(env.module)
+
+    attrs
+    |> Vacm.tree_families()
+    |> Enum.map(&Module.put_attribute(env.module, :view, &1))
+
     Scope.close(env.module)
   end
 
