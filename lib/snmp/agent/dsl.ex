@@ -11,6 +11,7 @@ defmodule Snmp.Agent.DSL do
     Module.register_attribute(__CALLER__.module, :mib, accumulate: true)
     Module.register_attribute(__CALLER__.module, :view, accumulate: true)
     Module.register_attribute(__CALLER__.module, :access, accumulate: true)
+    Module.register_attribute(__CALLER__.module, :security_group, accumulate: true)
 
     quote do
       import unquote(__MODULE__), only: :macros
@@ -127,9 +128,14 @@ defmodule Snmp.Agent.DSL do
   defp close_scope(env, :access, _attrs) do
     %{attrs: attrs} = Scope.current(env.module)
 
-    attrs
-    |> Vacm.accesses()
+    {accesses, security_to_group} = Vacm.from_access(attrs)
+
+    accesses
     |> Enum.map(&Module.put_attribute(env.module, :access, &1))
+
+    security_to_group
+    |> Enum.map(&Module.put_attribute(env.module, :security_group, &1))
+
     Scope.close(env.module)
   end
 
