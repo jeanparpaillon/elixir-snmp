@@ -123,11 +123,13 @@ defmodule Snmp.Agent.Config do
   end
 
   defp agent_env(s) do
+    db_dir = s.otp_app |> db_dir() |> to_charlist()
+    conf_dir = s.otp_app |> conf_dir() |> to_charlist()
     env =
       @default_agent_env
       |> Keyword.merge(
-        db_dir: db_dir(s.otp_app),
-        config: [dir: conf_dir(s.otp_app)],
+        db_dir: db_dir,
+        config: [dir: conf_dir],
         agent_verbosity: Map.fetch!(s, :verbosity),
         mibs: initial_mibs(s)
       )
@@ -243,7 +245,6 @@ defmodule Snmp.Agent.Config do
   end
 
   defp commit(s) do
-    IO.inspect(s, label: "CONF")
     :ok = Application.put_env(:snmp, :agent, Map.get(s, :agent_env))
 
     @configs

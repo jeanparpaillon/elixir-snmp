@@ -5,6 +5,8 @@ defmodule Snmp.Instrumentation.Generic do
   use Snmp.Instrumentation
 
   @impl Snmp.Instrumentation
+  def build_extra(varname, nil), do: {varname, :mnesia}
+
   def build_extra(varname, opts), do: {varname, opts}
 
   # Delegates :snmp_generic functions

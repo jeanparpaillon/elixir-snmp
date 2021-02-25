@@ -31,7 +31,7 @@ defmodule Snmp.Mib.Vacm do
       |> Keyword.merge(attrs)
       |> Enum.into(%{})
 
-    vacmViewTreeFamily(name: name, sub_tree: sub_tree, type: type, mask: mask)
+    vacmViewTreeFamily(name: to_charlist(name), sub_tree: sub_tree, type: type, mask: mask)
   end
 
   @doc false
@@ -99,7 +99,13 @@ defmodule Snmp.Mib.Vacm do
 
     security_to_group =
       sec_models
-      |> Enum.map(&vacmSecurityToGroup(sec_model: &1, sec_name: sec_name, group_name: group_name))
+      |> Enum.map(
+        &vacmSecurityToGroup(
+          sec_model: &1,
+          sec_name: to_charlist(sec_name),
+          group_name: to_charlist(group_name)
+        )
+      )
 
     {accesses, security_to_group}
   end
