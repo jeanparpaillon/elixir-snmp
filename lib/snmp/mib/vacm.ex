@@ -25,16 +25,6 @@ defmodule Snmp.Mib.Vacm do
   ]
 
   @doc false
-  def community(attrs) do
-    name = Keyword.fetch!(attrs, :name)
-    index = Keyword.get(attrs, :index, name)
-    sec_name = Keyword.fetch!(attrs, :sec_name)
-    ctx_name = Keyword.get(attrs, :context_name, '')
-    transport_tag = Keyword.get(attrs, :transport_tag, '')
-    {index, name, sec_name, ctx_name, transport_tag}
-  end
-
-  @doc false
   def tree_family(attrs) do
     %{name: name, sub_tree: sub_tree, type: type, mask: mask} =
       @default_tree_family

@@ -2,6 +2,11 @@ defmodule Snmp.Agent.Config do
   @moduledoc """
   Handle agent configuration
   """
+  require Snmp.Mib.Vacm
+
+  alias Snmp.Mib.Community
+  alias Snmp.Mib.UserBasedSm
+  alias Snmp.Mib.Vacm
   alias Snmp.Transport
 
   @type t :: map()
@@ -92,14 +97,14 @@ defmodule Snmp.Agent.Config do
 
   defp do_build(s) do
     s
-    |> (&case ensure_conf_dir(&1.otp_app) do
-      :ok -> &1
-      {:error, err} -> error(&1, err)
-    end).()
-    |> (&case ensure_db_dir(&1.otp_app) do
-      :ok -> &1
-      {:error, err} -> error(&1, err)
-    end).()
+    |> (&(case ensure_conf_dir(&1.otp_app) do
+            :ok -> &1
+            {:error, err} -> error(&1, err)
+          end)).()
+    |> (&(case ensure_db_dir(&1.otp_app) do
+            :ok -> &1
+            {:error, err} -> error(&1, err)
+          end)).()
     |> verbosity()
     |> when_valid?(&agent_env/1)
     |> when_valid?(&agent_conf/1)
@@ -171,28 +176,51 @@ defmodule Snmp.Agent.Config do
   end
 
   defp community_conf(s) do
-    versions = versions(s)
-
-    community =
-    if :v1 in versions or :v2 in versions do
-      []
-    else
-      []
-    end
+    communities =
+      s.handler
+      |> apply(:__agent__, [:security_groups])
+      |> Enum.reduce(MapSet.new(), fn
+        {:vacmSecurityToGroup, :v1, sec_name, _}, acc -> MapSet.put(acc, sec_name)
+        {:vacmSecurityToGroup, :v2c, sec_name, _}, acc -> MapSet.put(acc, sec_name)
+        _, acc -> acc
+      end)
+      |> MapSet.to_list()
+      |> Enum.map(&Community.new(name: &1, sec_name: &1))
 
     s
-    |> Map.put(:community_conf, community)
+    |> Map.put(:community_conf, communities)
   end
 
   defp vacm_conf(s) do
-    vacm_conf = []
+    vacm_conf =
+      apply(s.handler, :__agent__, [:accesses]) ++
+        apply(s.handler, :__agent__, [:security_groups]) ++
+        apply(s.handler, :__agent__, [:views])
 
     s
     |> Map.put(:vacm_conf, vacm_conf)
   end
 
   defp usm_conf(s) do
-    usm_conf = []
+    engine_id =
+      s
+      |> mib_mod(:"SNMP-FRAMEWORK-MIB")
+      |> apply(:__mib__, [:config])
+      |> Keyword.get(:snmpEngineID)
+
+    accesses =
+      s.handler
+      |> apply(:__agent__, [:accesses])
+      |> Enum.reduce(%{}, fn access, acc ->
+        name = :"#{Vacm.vacmAccess(access, :group_name)}"
+        Map.put(acc, name, access)
+      end)
+
+    usm_conf =
+      s.otp_app
+      |> Application.get_env(s.handler, [])
+      |> Keyword.get(:security, [])
+      |> UserBasedSm.config(engine_id, accesses)
 
     s
     |> Map.put(:usm_conf, usm_conf)
@@ -275,7 +303,7 @@ defmodule Snmp.Agent.Config do
 
     s.handler
     |> apply(:__agent__, [:mibs])
-    |> Enum.reject(& elem(&1, 0) in @default_mibs)
+    |> Enum.reject(&(elem(&1, 0) in @default_mibs))
     |> Enum.map(fn {name, _module} ->
       find_path(mibs_paths, "#{name}.bin")
     end)
@@ -298,11 +326,5 @@ defmodule Snmp.Agent.Config do
       {app, dir} -> Application.app_dir(app, dir)
       dir when is_binary(dir) -> dir
     end)
-  end
-
-  defp versions(s) do
-    s
-    |> Map.get(:agent_env, [])
-    |> Keyword.get(:versions, [])
   end
 end
