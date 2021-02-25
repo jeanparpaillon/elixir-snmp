@@ -123,6 +123,7 @@ defmodule Snmp.Agent.Config do
   end
 
   defp agent_env(s) do
+    env = Application.get_env(s.otp_app, s.handler)
     db_dir = s.otp_app |> db_dir() |> to_charlist()
     conf_dir = s.otp_app |> conf_dir() |> to_charlist()
     env =
@@ -133,6 +134,7 @@ defmodule Snmp.Agent.Config do
         agent_verbosity: Map.fetch!(s, :verbosity),
         mibs: initial_mibs(s)
       )
+      |> Keyword.merge(Keyword.take(env, [:versions]))
 
     net_if_env =
       @default_net_if_env

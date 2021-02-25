@@ -53,13 +53,18 @@ defmodule Snmp.Mib do
 
   @doc false
   defmacro __using__(opts) do
+    default_instr_opts = [caller: __CALLER__.module]
+
     {instr_mod, instr_opts} =
       opts
       |> Keyword.get(:instrumentation, __CALLER__.module)
       |> Macro.expand(__CALLER__)
       |> case do
-        mod when is_atom(mod) -> {mod, nil}
-        {mod, opts} -> {mod, opts}
+        mod when is_atom(mod) ->
+          {mod, default_instr_opts}
+
+        {mod, opts} when is_list(opts) ->
+          {mod, Keyword.merge(default_instr_opts, opts)}
       end
 
     name = Keyword.fetch!(opts, :name)
@@ -80,13 +85,15 @@ defmodule Snmp.Mib do
         Module.register_attribute(__MODULE__, :range, accumulate: true)
         Module.register_attribute(__MODULE__, :default, accumulate: true)
         Module.register_attribute(__MODULE__, :enum, accumulate: true)
+        Module.register_attribute(__MODULE__, :table_info, accumulate: true)
 
         @before_compile Snmp.Mib
         @before_compile Snmp.Instrumentation
       end
     ] ++
       Enum.map(mib(mib, :asn1_types), &parse_asn1_type/1) ++
-      Enum.map(mib(mib, :mes), &parse_me(&1, __CALLER__))
+      Enum.map(mib(mib, :mes), &parse_me(&1, __CALLER__)) ++
+      Enum.map(mib(mib, :table_infos), &parse_table_info(&1, mib, __CALLER__))
   end
 
   defmacro __before_compile__(env) do
@@ -241,6 +248,47 @@ defmodule Snmp.Mib do
 
   defp parse_table(ast, _, _), do: ast
 
+  defp parse_table_info({table, infos}, mib, _env) do
+    columns =
+      mib
+      |> mib(:mes)
+      |> Enum.filter(fn
+        me(entrytype: :table_column, assocList: [table_name: ^table]) -> true
+        _ -> false
+      end)
+
+    indices =
+      table_info(infos, :index_types)
+      |> Enum.map(&cast_indices_type/1)
+
+    attributes = Enum.map(columns, fn me(aliasname: colname) -> colname end)
+
+    {indices, attributes} =
+      case indices do
+        [key] ->
+          {key, attributes}
+
+        keys ->
+          # In case of composed index, rename first column as `index`
+          [_ | attributes] = attributes
+          {List.to_tuple(keys), [:index | attributes]}
+      end
+
+    # Insert extra attribute in case there is only one column: one
+    # column tuple is not supported by Mnesia
+    attributes =
+      case attributes do
+        [col] -> [col, :"$extra"]
+        cols -> cols
+      end
+
+    infos = %{indices: indices, attributes: attributes}
+
+    quote do
+      @table_info {unquote(table), unquote(Macro.escape(infos))}
+    end
+  end
+
   ###
   ### (phase 2) translate module attributes into functions/modules
   ###
@@ -290,6 +338,8 @@ defmodule Snmp.Mib do
     mibname = env.module |> Module.get_attribute(:mib_name)
     extra = env.module |> Module.get_attribute(:mib_extra, [])
 
+    table_infos = env.module |> Module.get_attribute(:table_info, []) |> Enum.into(%{})
+
     [
       quote do
         def __mib__(:oids), do: unquote(Macro.escape(oids))
@@ -301,6 +351,8 @@ defmodule Snmp.Mib do
         def __mib__(:tablefuns), do: unquote(Macro.escape(tablefuns))
 
         def __mib__(:name), do: unquote(Macro.escape(mibname))
+
+        def __mib__(:table_infos), do: unquote(Macro.escape(table_infos))
       end
     ] ++
       Enum.map(extra, fn {key, value} ->
@@ -309,4 +361,9 @@ defmodule Snmp.Mib do
         end
       end)
   end
+
+  defp cast_indices_type(asn1_type(bertype: :INTEGER)), do: :integer
+  defp cast_indices_type(asn1_type(bertype: :"OCTET STRING")), do: :string
+  defp cast_indices_type(asn1_type(bertype: :TimeTicks)), do: :integer
+  defp cast_indices_type(asn1_type(bertype: type)), do: type
 end
