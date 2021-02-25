@@ -2,10 +2,6 @@ defmodule Snmp.Mib.UserBasedSm do
   @moduledoc """
   Functions for SNMP-USER-BASED-SM-MIB
   """
-  require Snmp.Mib.Vacm
-
-  alias Snmp.Mib.Vacm
-
   @default_aes_opts [salt: "ytlas", rounds: 10]
 
   @doc """
@@ -34,7 +30,7 @@ defmodule Snmp.Mib.UserBasedSm do
   @doc """
   Returns a tuple representing a USM config
   """
-  def new(engine_id, sec_name, attrs, nil) do
+  def new(_engine_id, sec_name, attrs, nil) do
     user = Keyword.fetch!(attrs, :user)
     raise "Access #{sec_name} for user #{user} does not exist"
   end
