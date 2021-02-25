@@ -59,8 +59,6 @@ defmodule Snmp.Mib.UserBasedSm do
   ###
   ### Priv
   ###
-  defp to_list(data) when is_list(data), do: data
-
   defp to_list(bin) when is_binary(bin), do: binary_to_list(bin, [])
 
   defp binary_to_list(<<>>, acc), do: Enum.reverse(acc)
