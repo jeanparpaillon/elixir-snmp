@@ -26,7 +26,7 @@ defmodule Snmp.Mib.Framework do
           Mix.raise(err)
       end
 
-      Agent.Config.write_config(unquote(app), "standard.conf", conf, true)
+      Agent.Config.write_config(unquote(app), "agent.conf", conf, true)
 
 
       @mib_name :"SNMP-FRAMEWORK-MIB"

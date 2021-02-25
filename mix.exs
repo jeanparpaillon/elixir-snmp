@@ -26,8 +26,7 @@ defmodule Snmp.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:stream_data, "~> 0.5", only: [:test]},
-      {:kryptonite, "~> 0.1"}
+      {:stream_data, "~> 0.5", only: [:test]}
     ]
   end
 

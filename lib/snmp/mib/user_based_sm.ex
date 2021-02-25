@@ -2,7 +2,9 @@ defmodule Snmp.Mib.UserBasedSm do
   @moduledoc """
   Functions for SNMP-USER-BASED-SM-MIB
   """
-  @default_aes_opts [salt: "ytlas", rounds: 10]
+  require Snmp.Mib.Vacm
+
+  alias Snmp.Mib.Vacm
 
   @doc """
   Returns initial config for usm.conf
@@ -16,18 +18,6 @@ defmodule Snmp.Mib.UserBasedSm do
   end
 
   @doc """
-  Derive AES key from password
-  """
-  @spec derive_aes_key(binary()) :: binary()
-  def derive_aes_key(input) when is_binary(input) do
-    aes_opts =
-      @default_aes_opts
-      |> Keyword.merge(Application.get_env(:snmpex, :aes_opts, []))
-
-    Kryptonite.AES.derive_key(input, aes_opts)
-  end
-
-  @doc """
   Returns a tuple representing a USM config
   """
   def new(_engine_id, sec_name, attrs, nil) do
@@ -35,35 +25,41 @@ defmodule Snmp.Mib.UserBasedSm do
     raise "Access #{sec_name} for user #{user} does not exist"
   end
 
-  def new(engine_id, sec_name, attrs, _access) do
+  def new(engine_id, sec_name, attrs, access) do
     user = Keyword.fetch!(attrs, :user)
-    password = Keyword.fetch!(attrs, :password)
+
+    {auth_p, auth_key, priv_p, priv_key} =
+      access
+      |> Vacm.vacmAccess(:sec_level)
+      |> case do
+        :noPrivNoAuth ->
+          {:usmNoAuthProtocol, '', :usmNoPrivProtocol, ''}
+
+        :authNoPriv ->
+          password = Keyword.fetch!(attrs, :password)
+          auth_key = :snmp.passwd2localized_key(:md5, to_charlist(password), engine_id)
+          {:usmHMACMD5AuthProtocol, auth_key, :usmNoPrivProtocol, ''}
+
+        :authPriv ->
+          password = Keyword.fetch!(attrs, :password)
+          priv_key = auth_key = :snmp.passwd2localized_key(:md5, to_charlist(password), engine_id)
+          {:usmHMACMD5AuthProtocol, auth_key, :usmAesCfb128Protocol, priv_key}
+      end
 
     {
       engine_id,
-      user,
-      sec_name,
+      to_charlist(user),
+      to_charlist(sec_name),
       :zeroDotZero,
-      :usmHMACMD5AuthProtocol,
+      auth_p,
       '',
       '',
-      :usmAesCfb128Protocol,
+      priv_p,
       '',
       '',
       '',
-      :md5 |> :crypto.hash(password) |> to_list(),
-      password |> derive_aes_key() |> to_list()
+      auth_key,
+      priv_key
     }
-  end
-
-  ###
-  ### Priv
-  ###
-  defp to_list(bin) when is_binary(bin), do: binary_to_list(bin, [])
-
-  defp binary_to_list(<<>>, acc), do: Enum.reverse(acc)
-
-  defp binary_to_list(<<b, rest::binary>>, acc) do
-    binary_to_list(rest, [b | acc])
   end
 end

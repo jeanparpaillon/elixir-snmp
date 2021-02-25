@@ -23,7 +23,7 @@ defmodule Snmp.Agent.Config do
   @default_transports ["127.0.0.1", "::1"]
 
   @default_agent_env [
-    versions: [:v1, :v2],
+    versions: [:v3],
     multi_threaded: true,
     mib_server: []
   ]
