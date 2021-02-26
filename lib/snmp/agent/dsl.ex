@@ -120,7 +120,7 @@ defmodule Snmp.Agent.DSL do
 
     attrs
     |> Vacm.tree_families()
-    |> Enum.map(&Module.put_attribute(env.module, :view, &1))
+    |> Enum.each(&Module.put_attribute(env.module, :view, &1))
 
     Scope.close(env.module)
   end
@@ -131,10 +131,10 @@ defmodule Snmp.Agent.DSL do
     {accesses, security_to_group} = Vacm.from_access(attrs)
 
     accesses
-    |> Enum.map(&Module.put_attribute(env.module, :access, &1))
+    |> Enum.each(&Module.put_attribute(env.module, :access, &1))
 
     security_to_group
-    |> Enum.map(&Module.put_attribute(env.module, :security_group, &1))
+    |> Enum.each(&Module.put_attribute(env.module, :security_group, &1))
 
     Scope.close(env.module)
   end

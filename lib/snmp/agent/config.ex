@@ -260,11 +260,11 @@ defmodule Snmp.Agent.Config do
   end
 
   defp write_terms(path, terms, overwrite) do
-    unless file_ok(path, overwrite) do
+    if file_ok(path, overwrite) do
+      :ok
+    else
       data = Enum.map(terms, &:io_lib.format('~tp.~n', [&1]))
       File.write(path, data)
-    else
-      :ok
     end
   end
 
