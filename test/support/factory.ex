@@ -87,7 +87,7 @@ defmodule Snmp.Test.Factory do
   def gen_port_range() do
     gen all(
           min <- integer(0..65_535),
-          max <- integer((min+1)..65_535)
+          max <- integer((min + 1)..65_535)
         ) do
       {min, max}
     end

@@ -13,11 +13,12 @@ defmodule Snmp.Agent.Handler do
       @otp_app unquote(app)
 
       @doc false
-      def child_spec(_args), do: %{
-        id: __MODULE__,
-        start: {Snmp.Agent, :start_link, [__MODULE__]},
-        type: :worker
-      }
+      def child_spec(_args),
+        do: %{
+          id: __MODULE__,
+          start: {Snmp.Agent, :start_link, [__MODULE__]},
+          type: :worker
+        }
 
       @before_compile Snmp.Agent.Handler
     end

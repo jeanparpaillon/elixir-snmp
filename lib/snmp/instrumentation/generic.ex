@@ -78,7 +78,7 @@ defmodule Snmp.Instrumentation.Generic do
         :ok
 
       err ->
-        Logger.error("Creating table #{table_name}: #{inspect err}")
+        Logger.error("Creating table #{table_name}: #{inspect(err)}")
         :ok
     end
   end

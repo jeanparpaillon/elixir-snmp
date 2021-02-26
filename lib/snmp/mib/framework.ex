@@ -28,7 +28,6 @@ defmodule Snmp.Mib.Framework do
 
       Agent.Config.write_config(unquote(app), "agent.conf", conf, true)
 
-
       @mib_name :"SNMP-FRAMEWORK-MIB"
       @mib_extra config: conf
 

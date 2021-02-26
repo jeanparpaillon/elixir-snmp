@@ -126,6 +126,7 @@ defmodule Snmp.Agent.Config do
     env = Application.get_env(s.otp_app, s.handler, [])
     db_dir = s.otp_app |> db_dir() |> to_charlist()
     conf_dir = s.otp_app |> conf_dir() |> to_charlist()
+
     env =
       @default_agent_env
       |> Keyword.merge(
