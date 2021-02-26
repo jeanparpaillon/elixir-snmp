@@ -1,0 +1,141 @@
+version: 2.1 # use CircleCI 2.1 instead of CircleCI Classic
+
+x-common:
+  job-common: &job-common
+    working_directory: /home/circleci/project
+    docker:
+      - image: circleci/elixir:1.11
+        environment:
+          MIX_ARCHIVES: /home/circleci/project/.mix/archives
+          MIX_HOME: /home/circleci/project/.mix
+
+x-cache:
+  - &save-deps-cache
+    save_cache:
+      key: v1-deps-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
+      paths: ["deps"]
+  - &restore-deps-cache
+    restore_cache:
+      keys:
+        - v1-deps-cache-{{ .Branch }}-{{ checksum "mix.lock" }}
+  - &save-plt-cache
+    save_cache:
+      key: v1-plt-cache-{{ .Branch }}-{{ checksum ".dialyzer/cache.plt" }}
+      paths: [".dialyzer/cache.plt"]
+  - &restore-plt-cache
+    restore_cache:
+      keys:
+        - v1-plt-cache-{{ .Branch }}-{{ checksum ".dialyzer/cache.plt" }}
+  - &attach-workspace
+    attach_workspace:
+      at: /home/circleci
+
+x-filters:
+  only-pr: &only-pr
+    branches:
+      ignore: /^master$/
+  only-tags: &only-tags
+    tags:
+      only: /^v.*/
+    branches:
+      ignore: /.*/
+  only-master: &only-master
+    branches:
+      only: /^master$/
+
+jobs:
+  setup:
+    <<: *job-common
+    steps:
+      - checkout
+      - *restore-deps-cache
+      - run: mix local.hex --force --if-missing
+      - run: mix local.rebar --force --if-missing
+      - run: mix deps.get
+      - *save-deps-cache
+      - persist_to_workspace:
+          root: /home/circleci/
+          paths: ["project"]
+
+  build:
+    <<: *job-common
+    steps:
+      - *attach-workspace
+      - run: mix compile --warnings-as-errors
+      - persist_to_workspace:
+          root: /home/circleci/
+          paths: ["project/_build"]
+
+  format:
+    <<: *job-common
+    steps:
+      - *attach-workspace
+      - run: mix format --check-formatted
+            
+  dialyzer:
+    <<: *job-common
+    steps:
+      - *attach-workspace
+      - run: mix dialyzer
+
+  credo:
+    <<: *job-common
+    steps:
+      - *attach-workspace
+      - run: mix credo       
+
+  test:
+    <<: *job-common
+    steps:
+      - *attach-workspace
+      - run: mix test
+
+      
+workflows:
+  version: 2
+  on-pull-request:
+    jobs:
+      - setup:
+          filters:
+            <<: *only-pr
+      - build:
+          requires:
+            - setup
+          filters:
+            <<: *only-pr
+      - format:
+          requires:
+            - setup
+          filters:
+            <<: *only-pr
+      - credo:
+          requires:
+            - build
+          filters:
+            <<: *only-pr
+      - dialyzer:
+          requires:
+            - build
+          filters:
+            <<: *only-pr
+      - test:
+          requires:
+            - build
+          filters:
+            <<: *only-pr
+
+  master:
+    jobs:
+      - setup:
+          filters:
+            <<: *only-master
+      - build:
+          requires:
+            - setup
+          filters:
+            <<: *only-master
+      - test:
+          requires:
+            - build
+          filters:
+            <<: *only-master
