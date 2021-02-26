@@ -6,7 +6,7 @@ defmodule Snmp.MixProject do
 
   def project do
     [
-      app: :snmpex,
+      app: :elixir_snmp,
       version: @version,
       elixir: "~> 1.11",
       start_permanent: Mix.env() == :prod,
