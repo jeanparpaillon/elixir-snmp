@@ -1,6 +1,6 @@
 # elixir-snmp
 
-[![CircleCI](https://circleci.com/github/jeanparpaillon/elixir-snmp.svg?style=svg)](https://app.circleci.com/pipelines/github/jeanparpaillon/elixir-snmp)
+[![CircleCI](https://circleci.com/gh/jeanparpaillon/elixir-snmp.svg?style=shield)](https://app.circleci.com/pipelines/github/jeanparpaillon/elixir-snmp)
 
 Have you tried to integrate SNMP in your application but afraid of [OTP
 snmp](http://erlang.org/doc/man/SNMP_app.html) documentation ? `elixir-snmp` may
