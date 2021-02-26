@@ -3,6 +3,7 @@ defmodule Snmp.Compiler do
   Functions for compiling MIBs
   """
   require Record
+  require Snmp.Compiler.Options
 
   alias Snmp.Compiler.Options
   alias Snmp.Mib
@@ -10,7 +11,7 @@ defmodule Snmp.Compiler do
   # From `snmp/src/compile/snmpc.hrl`
   Record.defrecordp(:pdata, mib_version: nil, mib_name: nil, imports: nil, defs: nil)
 
-  @type opts :: Snmp.Compiler.Options.t()
+  @type opts :: %Snmp.Compiler.Options{}
 
   @doc """
   Compiles given MIBs
@@ -38,7 +39,7 @@ defmodule Snmp.Compiler do
   @doc """
   Compiles and returns MIB (AST)
   """
-  @spec mib(String.Chars.t(), Options.t()) :: {:ok, Mib.t()} | {:error, term()}
+  @spec mib(String.Chars.t(), opts()) :: {:ok, Mib.t()} | {:error, term()}
   def mib(name, opts) do
     src = find_mib(opts, "#{name}" <> ".mib")
 
@@ -50,7 +51,7 @@ defmodule Snmp.Compiler do
   @doc """
   Returns given source's dependencies (imports)
   """
-  @spec dependencies(Path.t(), Options.t()) :: {:ok, [String.t()]} | {:error, term()}
+  @spec dependencies(Path.t(), opts()) :: {:ok, [String.t()]} | {:error, term()}
   def dependencies(source, opts) do
     source
     |> Mib.Parser.from_file()

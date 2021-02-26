@@ -46,8 +46,10 @@ defmodule Snmp.MixProject do
 
   defp package do
     [
+      maintainers: ["Jean Parpaillon"],
       licenses: ["Apache-2.0"],
-      links: %{"GitHub" => @source_url}
+      links: %{"GitHub" => @source_url},
+      files: ~w(.formatter.exs mix.exs README.md CHANGELOG.md lib)
     ]
   end
 
@@ -61,7 +63,20 @@ defmodule Snmp.MixProject do
       main: "readme",
       skip_undefined_reference_warnings_on: ["CHANGELOG.md"],
       source_ref: "v#{@version}",
-      source_url: @source_url
+      source_url: @source_url,
+      formatters: ["html"],
+      groups_for_modules: [
+        "Agent building": [Snmp.Agent, Snmp.Agent.DSL, Snmp.Transport],
+        "MIBs tooling": [Snmp.Instrumentation, Snmp.Instrumentation.Generic, Snmp.Mib],
+        "Standard MIBs": [
+          Snmp.Mib.Community,
+          Snmp.Mib.Framework,
+          Snmp.Mib.Standard,
+          Snmp.Mib.UserBasedSm,
+          Snmp.Mib.Vacm
+        ],
+        Misc: [Snmp.Compiler]
+      ]
     ]
   end
 

@@ -1,7 +1,5 @@
 defmodule Snmp.Compiler.Options do
-  @moduledoc """
-  Defines a structure for compiler options
-  """
+  @moduledoc false
   defstruct srcdir: "./mibs",
             destdir: "./priv/mibs",
             includes: [],

@@ -1,5 +1,3 @@
 defmodule Snmp do
-  @moduledoc """
-  Documentation for `Snmp`.
-  """
+  @moduledoc false
 end

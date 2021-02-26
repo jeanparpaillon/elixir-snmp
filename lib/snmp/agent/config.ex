@@ -1,7 +1,5 @@
 defmodule Snmp.Agent.Config do
-  @moduledoc """
-  Handle agent configuration
-  """
+  @moduledoc false
   require Snmp.Mib.Vacm
 
   alias Snmp.Mib.Community
@@ -58,9 +56,7 @@ defmodule Snmp.Agent.Config do
     target_params_conf: "target_params.conf"
   ]
 
-  @doc """
-  Build agent configuration
-  """
+  # Build agent configuration
   @spec build(module) :: {:ok, t()} | {:error, [term()]}
   def build(handler) do
     if Kernel.function_exported?(handler, :__agent__, 1) do
@@ -75,9 +71,7 @@ defmodule Snmp.Agent.Config do
     end
   end
 
-  @doc """
-  Write given configuration into a configuration file
-  """
+  # Write given configuration into a configuration file
   @spec write_config(atom(), Path.t(), term(), boolean()) :: :ok | {:error, term()}
   def write_config(app, path, config, overwrite \\ true) do
     :ok = ensure_conf_dir(app)

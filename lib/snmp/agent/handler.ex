@@ -1,7 +1,5 @@
 defmodule Snmp.Agent.Handler do
-  @moduledoc """
-  Macros and functions for building SNMP agent handler
-  """
+  @moduledoc false
   @mandatory_mibs ~w(STANDARD-MIB SNMP-FRAMEWORK-MIB)a
 
   defmacro __using__(opts) do

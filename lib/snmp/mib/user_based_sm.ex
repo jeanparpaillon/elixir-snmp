@@ -6,9 +6,25 @@ defmodule Snmp.Mib.UserBasedSm do
 
   alias Snmp.Mib.Vacm
 
+  @type user_opt() ::
+          {:user, String.Chars.t()} | {:password, String.Chars.t()} | {:access, atom() | [atom()]}
+
+  @typedoc """
+  A user definition in configuration
+
+  # Options
+
+  * `user`: user name
+  * `password`: user password, used for both authentication and encryption,
+    optional if referenced accesses are `noAuthNoPriv`
+  * `access`: one or several accesses as defined in agent
+  """
+  @type user :: [user_opt()]
+
   @doc """
   Returns initial config for usm.conf
   """
+  @spec config([user()], String.Chars.t(), map()) :: list()
   def config(users, engine_id, accesses) do
     users
     |> Enum.reduce([], fn attrs, acc ->

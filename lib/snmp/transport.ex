@@ -1,8 +1,13 @@
 defmodule Snmp.Transport do
   @moduledoc """
-  Defines SNMP transport
+  Defines SNMP transport types.
   """
   defstruct t_domain: nil, addr: nil, port: nil, port_info: nil, kind: nil, opts: nil
+
+  @typedoc """
+  Transport definition type accepted by agent configuration
+  """
+  @type agent_transport() :: int_agent_transport() | String.t()
 
   @type int_agent_transport() ::
           {t_domain, addr}
