@@ -1,18 +1,26 @@
 defmodule Snmp.MixProject do
   use Mix.Project
 
+  @version "0.1.0"
+  @source_url "https://github.com/jeanparpaillon/elixir-snmp"
+
   def project do
     [
       app: :snmpex,
-      version: "0.1.0",
-      build_path: "../../_build",
-      config_path: "../../config/config.exs",
-      deps_path: "../../deps",
-      lockfile: "../../mix.lock",
+      version: @version,
       elixir: "~> 1.11",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      elixirc_paths: elixirc_paths(Mix.env())
+      docs: docs(),
+      description: description(),
+      package: package(),
+      elixirc_paths: elixirc_paths(Mix.env()),
+      dialyzer: dialyzer(),
+      preferred_cli_env: %{
+        docs: :docs,
+        "hex.publish": :docs,
+        "hex.build": :docs
+      }
     ]
   end
 
@@ -26,10 +34,37 @@ defmodule Snmp.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:stream_data, "~> 0.5", only: [:test]}
+      {:stream_data, "~> 0.5", only: [:test]},
+      {:ex_doc, "~> 0.23", only: [:docs], runtime: false},
+      {:dialyxir, "1.0.0", only: [:dev, :test], runtime: false}
     ]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  defp package do
+    [
+      licenses: ["Apache-2.0"],
+      links: %{"GitHub" => @source_url}
+    ]
+  end
+
+  defp description do
+    "SNMP tooling for elixir"
+  end
+
+  defp docs do
+    [
+      extras: ["README.md", "CHANGELOG.md"],
+      main: "readme",
+      skip_undefined_reference_warnings_on: ["CHANGELOG.md"],
+      source_ref: "v#{@version}",
+      source_url: @source_url
+    ]
+  end
+
+  defp dialyzer do
+    [ignore_warnings: "dialyzer.ignore-warnings"]
+  end
 end
