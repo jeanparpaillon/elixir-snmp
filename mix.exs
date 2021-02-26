@@ -47,7 +47,7 @@ defmodule Snmp.MixProject do
   defp package do
     [
       maintainers: ["Jean Parpaillon"],
-      licenses: ["Apache-2.0"],
+      licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
       files: ~w(.formatter.exs mix.exs README.md CHANGELOG.md lib)
     ]
