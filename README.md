@@ -1,6 +1,10 @@
 # elixir-snmp
 
 [![CircleCI](https://circleci.com/gh/jeanparpaillon/elixir-snmp.svg?style=shield)](https://app.circleci.com/pipelines/github/jeanparpaillon/elixir-snmp)
+[![Hex version](https://img.shields.io/hexpm/v/elixir_snmp.svg "Hex version")](https://hex.pm/packages/elixir_snmp)
+[![Documentation](https://img.shields.io/badge/hex-docs-green.svg)](https://hexdocs.pm/elixir_snmp/)
+[![Total Download](https://img.shields.io/hexpm/dt/elixir_snmp.svg?maxAge=2592000)](https://hex.pm/packages/elixir_snmp)
+[![License](https://img.shields.io/hexpm/l/elixir_snmp.svg?maxAge=259200)](https://github.com/jeanparpaillon/elixir_snmp/blob/master/LICENSE)
 
 Have you tried to integrate SNMP in your application but afraid of [OTP
 snmp](http://erlang.org/doc/man/SNMP_app.html) documentation ? `elixir-snmp` may
