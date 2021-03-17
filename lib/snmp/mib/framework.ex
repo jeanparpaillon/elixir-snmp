@@ -2,11 +2,7 @@ defmodule Snmp.Mib.Framework do
   @moduledoc """
   Helper for implementing SNMP-FRAMEWORK-MIB
   """
-  alias Snmp.Agent
-
   defmacro __using__(opts) do
-    app = Keyword.fetch!(opts, :otp_app)
-    agent = Keyword.fetch!(opts, :agent)
     conf = Keyword.fetch!(opts, :conf)
 
     quote do
@@ -26,8 +22,6 @@ defmodule Snmp.Mib.Framework do
           err = "Missing mandatory variables for FRAMEWORK-MIB:" <> Enum.join(missing, " ")
           Mix.raise(err)
       end
-
-      Agent.Config.write_config({unquote(app), unquote(agent)}, "agent.conf", conf, true)
 
       @mib_name :"SNMP-FRAMEWORK-MIB"
       @mib_extra config: conf
