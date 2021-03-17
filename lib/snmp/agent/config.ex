@@ -46,6 +46,7 @@ defmodule Snmp.Agent.Config do
 
   @configs [
     agent_conf: "agent.conf",
+    standard_conf: "standard.conf",
     context_conf: "context.conf",
     community_conf: "community.conf",
     vacm_conf: "vacm.conf",
@@ -70,38 +71,27 @@ defmodule Snmp.Agent.Config do
     end
   end
 
-  # Write given configuration into a configuration file
-  @spec write_config({atom(), atom()}, Path.t(), term(), boolean()) :: :ok | {:error, term()}
-  def write_config({app, agent}, path, config, overwrite \\ true) do
-    env = Application.get_env(app, agent)
-    :ok = ensure_conf_dir(env, app)
-    env |> conf_dir(app) |> Path.join(path) |> write_terms(config, overwrite)
-  end
-
   ###
   ### Priv
   ###
-  defp db_dir(env, app) do
-    env
+  defp db_dir(handler_env, app) do
+    handler_env
     |> Keyword.get_lazy(:dir, fn -> Application.app_dir(app, @agentdir) end)
     |> Path.join("db")
   end
 
-  defp conf_dir(env, app) do
-    env
+  defp conf_dir(handler_env, app) do
+    handler_env
     |> Keyword.get_lazy(:dir, fn -> Application.app_dir(app, @agentdir) end)
     |> Path.join("conf")
   end
-
-  defp ensure_conf_dir(env, app), do: env |> conf_dir(app) |> File.mkdir_p()
-
-  defp ensure_db_dir(env, app), do: env |> db_dir(app) |> File.mkdir_p()
 
   defp do_build(s) do
     s
     |> verbosity()
     |> when_valid?(&agent_env/1)
     |> when_valid?(&agent_conf/1)
+    |> when_valid?(&standard_conf/1)
     |> when_valid?(&context_conf/1)
     |> when_valid?(&community_conf/1)
     |> when_valid?(&vacm_conf/1)
@@ -165,6 +155,16 @@ defmodule Snmp.Agent.Config do
 
     s
     |> Map.put(:agent_conf, agent_conf)
+  end
+
+  defp standard_conf(s) do
+    standard_conf =
+      s
+      |> mib_mod(:"STANDARD-MIB")
+      |> apply(:__mib__, [:config])
+
+    s
+    |> Map.put(:standard_conf, standard_conf)
   end
 
   defp context_conf(s) do
@@ -244,17 +244,17 @@ defmodule Snmp.Agent.Config do
 
   defp ensure_dirs(s) do
     env = s.agent_env
-    app = s.otp_app
 
     s
-    |> (&(case ensure_conf_dir(env, app) do
-            :ok -> &1
-            {:error, err} -> error(&1, err)
-          end)).()
-    |> (&(case ensure_db_dir(env, app) do
-            :ok -> &1
-            {:error, err} -> error(&1, err)
-          end)).()
+    |> ensure_dir(env[:db_dir])
+    |> ensure_dir(env[:config][:dir])
+  end
+
+  defp ensure_dir(s, dir) do
+    case File.mkdir_p(dir) do
+      :ok -> s
+      {:error, posix} -> error(s, {posix, dir})
+    end
   end
 
   defp commit(s) do
@@ -262,7 +262,9 @@ defmodule Snmp.Agent.Config do
 
     @configs
     |> Enum.reduce(s, fn {name, file}, acc ->
-      case write_config(s.otp_app, file, Map.get(s, name)) do
+      path = s.agent_env[:config][:dir] |> Path.join(file)
+
+      case write_terms(path, Map.get(s, name), true) do
         :ok -> acc
         {:error, error} -> error(acc, error)
       end
