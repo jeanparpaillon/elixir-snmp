@@ -9,8 +9,7 @@ defmodule Snmp.Agent.Config do
 
   @type t :: map()
 
-  @dbdir "priv/snmp/agent/db"
-  @confdir "priv/snmp/agent/conf"
+  @agentdir "priv/snmp/agent"
 
   @default_mibs ~w(STANDARD-MIB SNMPv2 SNMP-FRAMEWORK-MIB SNMP-MPD-MIB)a
 
@@ -82,11 +81,17 @@ defmodule Snmp.Agent.Config do
   ###
   ### Priv
   ###
-  defp db_dir(env, app),
-    do: Keyword.get_lazy(env, :dir, fn -> Application.app_dir(app, @dbdir) end)
+  defp db_dir(env, app) do
+    env
+    |> Keyword.get_lazy(:dir, fn -> Application.app_dir(app, @agentdir) end)
+    |> Path.join("db")
+  end
 
-  defp conf_dir(env, app),
-    do: Keyword.get_lazy(env, :dir, fn -> Application.app_dir(app, @confdir) end)
+  defp conf_dir(env, app) do
+    env
+    |> Keyword.get_lazy(:dir, fn -> Application.app_dir(app, @agentdir) end)
+    |> path.join("conf")
+  end
 
   defp ensure_conf_dir(env, app), do: env |> conf_dir(app) |> File.mkdir_p()
 
