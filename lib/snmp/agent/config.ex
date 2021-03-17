@@ -90,7 +90,7 @@ defmodule Snmp.Agent.Config do
   defp conf_dir(env, app) do
     env
     |> Keyword.get_lazy(:dir, fn -> Application.app_dir(app, @agentdir) end)
-    |> path.join("conf")
+    |> Path.join("conf")
   end
 
   defp ensure_conf_dir(env, app), do: env |> conf_dir(app) |> File.mkdir_p()
