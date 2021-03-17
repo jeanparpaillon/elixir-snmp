@@ -72,33 +72,28 @@ defmodule Snmp.Agent.Config do
   end
 
   # Write given configuration into a configuration file
-  @spec write_config(atom(), Path.t(), term(), boolean()) :: :ok | {:error, term()}
-  def write_config(app, path, config, overwrite \\ true) do
-    :ok = ensure_conf_dir(app)
-    app |> conf_dir() |> Path.join(path) |> write_terms(config, overwrite)
+  @spec write_config({atom(), atom()}, Path.t(), term(), boolean()) :: :ok | {:error, term()}
+  def write_config({app, agent}, path, config, overwrite \\ true) do
+    env = Application.get_env(app, agent)
+    :ok = ensure_conf_dir(env, app)
+    env |> conf_dir(app) |> Path.join(path) |> write_terms(config, overwrite)
   end
 
   ###
   ### Priv
   ###
-  defp db_dir(app), do: Application.app_dir(app, @dbdir)
+  defp db_dir(env, app),
+    do: Keyword.get_lazy(env, :dir, fn -> Application.app_dir(app, @dbdir) end)
 
-  defp conf_dir(app), do: Application.app_dir(app, @confdir)
+  defp conf_dir(env, app),
+    do: Keyword.get_lazy(env, :dir, fn -> Application.app_dir(app, @confdir) end)
 
-  defp ensure_conf_dir(app), do: app |> conf_dir() |> File.mkdir_p()
+  defp ensure_conf_dir(env, app), do: env |> conf_dir(app) |> File.mkdir_p()
 
-  defp ensure_db_dir(app), do: app |> db_dir() |> File.mkdir_p()
+  defp ensure_db_dir(env, app), do: env |> db_dir(app) |> File.mkdir_p()
 
   defp do_build(s) do
     s
-    |> (&(case ensure_conf_dir(&1.otp_app) do
-            :ok -> &1
-            {:error, err} -> error(&1, err)
-          end)).()
-    |> (&(case ensure_db_dir(&1.otp_app) do
-            :ok -> &1
-            {:error, err} -> error(&1, err)
-          end)).()
     |> verbosity()
     |> when_valid?(&agent_env/1)
     |> when_valid?(&agent_conf/1)
@@ -108,6 +103,7 @@ defmodule Snmp.Agent.Config do
     |> when_valid?(&usm_conf/1)
     |> when_valid?(&notify_conf/1)
     |> when_valid?(&target_conf/1)
+    |> when_valid?(&ensure_dirs/1)
     |> when_valid?(&commit/1)
   end
 
@@ -118,8 +114,8 @@ defmodule Snmp.Agent.Config do
 
   defp agent_env(s) do
     env = Application.get_env(s.otp_app, s.handler, [])
-    db_dir = s.otp_app |> db_dir() |> to_charlist()
-    conf_dir = s.otp_app |> conf_dir() |> to_charlist()
+    db_dir = env |> db_dir(s.otp_app) |> to_charlist()
+    conf_dir = env |> conf_dir(s.otp_app) |> to_charlist()
 
     env =
       @default_agent_env
@@ -239,6 +235,21 @@ defmodule Snmp.Agent.Config do
     s
     |> Map.put(:target_conf, target_conf)
     |> Map.put(:target_params_conf, target_params_conf)
+  end
+
+  defp ensure_dirs(s) do
+    env = s.agent_env
+    app = s.otp_app
+
+    s
+    |> (&(case ensure_conf_dir(env, app) do
+            :ok -> &1
+            {:error, err} -> error(&1, err)
+          end)).()
+    |> (&(case ensure_db_dir(env, app) do
+            :ok -> &1
+            {:error, err} -> error(&1, err)
+          end)).()
   end
 
   defp commit(s) do
