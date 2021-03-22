@@ -20,14 +20,10 @@ defmodule Snmp.OID do
     :error
   """
   @spec parse(binary()) :: {:ok, t()} | :error
-  def parse(bin) when is_binary(bin),
-    do: parse_oid(bin, [])
-
-  defp parse_oid(params, acc) do
-    case Integer.parse(params) do
-      {i, <<?., rest::binary>>} -> parse_oid(rest, [i | acc])
-      {i, <<>>} -> {:ok, Enum.reverse([i | acc])}
-      _ -> :error
+  def parse(bin) when is_binary(bin) do
+    case String.split(bin, "::", parts: 2, trim: true) do
+      [_mibname, oid] -> parse_oid(oid, [])
+      [oid] -> parse_oid(oid, [])
     end
   end
 
@@ -38,4 +34,39 @@ defmodule Snmp.OID do
   def to_string(oid) when is_list(oid) do
     oid |> Enum.join(".")
   end
+
+  ###
+  ### Priv
+  ###
+  defp parse_oid(bin, acc) do
+    case Integer.parse(bin) do
+      {i, <<?., rest::binary>>} -> parse_oid(rest, [i | acc])
+      {i, <<>>} -> {:ok, Enum.reverse([i | acc])}
+      :error -> parse_oname(bin, acc)
+    end
+  end
+
+  defp parse_oname(bin, []) do
+    [prefix | rest] = String.split(bin, ".", parts: 2)
+
+    prefix
+    |> String.to_existing_atom()
+    |> :snmpa.name_to_oid()
+    |> case do
+      {:value, oid} ->
+        case rest do
+          [] -> {:ok, oid}
+          [rest] -> parse_oid(rest, Enum.reverse(oid))
+        end
+
+      false ->
+        :error
+    end
+  rescue
+    ArgumentError ->
+      :error
+  end
+
+  # Object name is acceptable only as prefix
+  defp parse_oname(_, _acc), do: :error
 end
