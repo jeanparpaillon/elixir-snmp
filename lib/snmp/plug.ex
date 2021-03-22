@@ -61,6 +61,7 @@ defmodule Snmp.Plug do
 
     body =
       oids
+      |> Enum.map(&elem(&1, 1))
       |> agent.get()
       |> case do
         {:error, {reason, oid}} ->
@@ -80,7 +81,7 @@ defmodule Snmp.Plug do
     |> Map.keys()
     |> Enum.reduce_while({:ok, []}, fn bin, {:ok, acc} ->
       case OID.parse(bin) do
-        {:ok, oid} -> {:cont, {:ok, [oid | acc]}}
+        {:ok, oid} -> {:cont, {:ok, [{bin, oid} | acc]}}
         :error -> {:halt, :error}
       end
     end)
@@ -94,14 +95,19 @@ defmodule Snmp.Plug do
     [oids, values]
     |> Enum.zip()
     |> Enum.reduce(%{errors: %{}, objects: %{}}, fn
-      {oid, :noSuchObject}, acc ->
-        %{acc | errors: Map.put(acc.errors, OID.to_string(oid), :noSuchObject)}
+      {{bin, _oid}, :noSuchObject}, acc ->
+        %{acc | errors: Map.put(acc.errors, bin, :noSuchObject)}
 
-      {oid, value}, acc when is_list(value) ->
-        %{acc | objects: Map.put(acc.objects, OID.to_string(oid), to_string(value))}
-
-      {oid, value}, acc ->
-        %{acc | objects: Map.put(acc.objects, OID.to_string(oid), value)}
+      {{bin, oid}, value}, acc ->
+        %{acc | objects: Map.put(acc.objects, bin, object(oid, value))}
     end)
+  end
+
+  defp object(oid, value) when is_list(value) do
+    %{oid: OID.to_string(oid), value: to_string(value)}
+  end
+
+  defp object(oid, value) do
+    %{oid: OID.to_string(oid), value: value}
   end
 end
