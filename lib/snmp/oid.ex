@@ -24,6 +24,7 @@ defmodule Snmp.OID do
     case String.split(bin, "::", parts: 2, trim: true) do
       [_mibname, oid] -> parse_oid(oid, [])
       [oid] -> parse_oid(oid, [])
+      [] -> :error
     end
   end
 
