@@ -1,5 +1,7 @@
 defmodule Snmp.Agent.Handler do
   @moduledoc false
+  alias Snmp.Object
+
   @mandatory_mibs ~w(STANDARD-MIB SNMP-FRAMEWORK-MIB)a
 
   defmacro __using__(opts) do
@@ -21,6 +23,7 @@ defmodule Snmp.Agent.Handler do
       defdelegate get(oid_or_oids), to: Snmp.Agent.Handler
       defdelegate get(oid_or_oids, ctx), to: Snmp.Agent.Handler
       defdelegate stream(oid), to: Snmp.Agent.Handler
+      defdelegate oid_to_name(oid), to: Snmp.Agent.Handler
 
       @before_compile Snmp.Agent.Handler
     end
@@ -47,57 +50,84 @@ defmodule Snmp.Agent.Handler do
   @doc """
   Returns MIB tree as stream
   """
-  @spec stream(:snmp.oid()) :: Enum.t()
+  @spec stream(:snmp.oid()) :: Stream.t()
   def stream(oid) do
-    Stream.resource(
-      fn -> [oid] end,
-      fn oids ->
-        case :snmpa.get_next(:snmp_master_agent, oids) do
-          {:error, reason} -> {:halt, {:error, reason}}
-          [] -> {:halt, :ok}
-          [{oid, :endOfMibView}] -> {:halt, oid}
-          [{oid, value}] -> {[{oid, value}], [oid]}
-        end
-      end,
-      fn _oid -> :ok end
-    )
+    Stream.resource(stream_init(oid), &stream_cont/1, &stream_end/1)
   end
 
   @doc """
   Return MIB objects
   """
-  @spec get([:snmp.oid()], String.t()) :: [term()] | {:error, {atom(), :snmp.oid()}}
+  @spec get([:snmp.oid()], String.t()) :: [Object.t()] | {:error, {atom(), :snmp.oid()}}
   def get(oids, ctx \\ "") do
-    :snmpa.get(:snmp_master_agent, oids, ctx)
+    :snmp_master_agent
+    |> :snmpa.get(oids, ctx)
+    |> case do
+      {:error, _} = err ->
+        err
+
+      data ->
+        [oids, data]
+        |> Enum.zip()
+        |> Enum.map(&to_object/1)
+    end
   end
 
   @doc """
-  Resolve OID into dot separated names
+  OID to name
   """
-  @spec oid_to_dot(:snmp.oid()) :: String.t()
-  def oid_to_dot(oid) when is_list(oid) do
-    oid
-    |> oid_to_names([])
-    |> Enum.join(".")
+  def oid_to_name(oid) do
+    oid |> Enum.reverse() |> oid_to_name([]) |> Enum.join(".")
   end
 
   ###
   ### Priv
   ###
-  defp oid_to_names([], acc), do: acc
+  defp oid_to_name([], acc), do: acc
 
-  defp oid_to_names([1, 3, 6, 1, 2], acc), do: acc
+  defp oid_to_name(r_oid, acc) do
+    case :snmpa.oid_to_name(Enum.reverse(r_oid)) do
+      false ->
+        [suffix | r_oid] = r_oid
+        oid_to_name(r_oid, [suffix | acc])
 
-  defp oid_to_names(oid, acc) do
-    r_oid = Enum.reverse(oid)
-
-    name =
-      case :snmpa.oid_to_name(oid) do
-        false -> "#{hd(r_oid)}"
-        {:value, name} -> name
-      end
-
-    oid = r_oid |> tl() |> Enum.reverse()
-    oid_to_names(oid, [name | acc])
+      {:value, name} ->
+        [name | acc]
+    end
   end
+
+  ###
+  ### Priv
+  ###
+  defp stream_init(oid), do: fn -> [oid] end
+
+  defp stream_cont(:endOfMibView), do: {:halt, []}
+
+  defp stream_cont(oids) do
+    case :snmpa.get_next(:snmp_master_agent, oids) do
+      {:error, _reason} -> {:halt, []}
+      [] -> {:halt, []}
+      [{oid, :endOfMibView}] -> {[to_object(oid, :endOfMibView)], :endOfMibView}
+      [{oid, value}] -> {[to_object(oid, value)], [oid]}
+    end
+  end
+
+  defp stream_end(_oid), do: :ok
+
+  defp to_object({oid, value}), do: to_object(oid, value)
+
+  defp to_object(oid, value) do
+    me = :snmpa.me_of(oid)
+    Object.new(%{oid: oid, name: oid_to_name(oid), value: cast_value(me, value)})
+  end
+
+  defp cast_value(
+         {:ok,
+          {:me, _, _, _, {:asn1_type, :"OCTET STRING", _, _, _, _, _, _, _}, _, _, _, _, _, _}},
+         value
+       ) do
+    to_string(value)
+  end
+
+  defp cast_value(_, value), do: value
 end

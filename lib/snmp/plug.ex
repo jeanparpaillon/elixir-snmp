@@ -18,10 +18,24 @@ defmodule Snmp.Plug do
       }
       ```
     * Example: GET /get?1.3.6.1.2.1.1.1.0&1.2.3
+
+  * `/getnext`: Retrieve a list of objects starting from given OID
+    * Params: one OID
+    * Returns:
+      ```json
+      {
+        errors: {},
+        objects: {
+          "1.3.6.1.2.1.1.1.0": "SNMP Agent"
+        },
+        next: "1.3.6.1.3.1"
+      }
+      ```
   """
   use Plug.Builder
 
-  alias Snmp.OID
+  alias Snmp.Plug.Get
+  alias Snmp.Plug.GetNext
 
   plug Plug.Parsers, parsers: []
   plug :mib
@@ -45,18 +59,26 @@ defmodule Snmp.Plug do
 
   def mib(%{path_info: ["get"]} = conn, _opts) do
     case conn.method do
-      "GET" -> get(conn, parse_oids(conn.params))
-      "_" -> send_resp(conn, 405, "")
+      "GET" -> get(conn, Get.Request.parse(conn))
+      _ -> send_resp(conn, 405, "")
+    end
+  end
+
+  def mib(%{path_info: ["getnext"]} = conn, _opts) do
+    case conn.method do
+      "GET" -> get_next(conn, GetNext.Request.parse(conn))
+      _ -> send_resp(conn, 405, "")
     end
   end
 
   def mib(conn, _opts), do: send_resp(conn, 404, "NOT FOUND")
 
-  def get(conn, :error) do
-    send_resp(conn, 400, Jason.encode!(%{errors: %{"oids" => "invalid params"}}))
+  def get(conn, %{valid?: false} = req) do
+    body = Get.Response.encode(req)
+    send_resp(conn, 400, Jason.encode!(body))
   end
 
-  def get(conn, {:ok, oids}) when is_list(oids) do
+  def get(conn, %{oids: oids}) when is_list(oids) do
     agent = conn.private[:snmp_agent]
 
     body =
@@ -64,11 +86,13 @@ defmodule Snmp.Plug do
       |> Enum.map(&elem(&1, 1))
       |> agent.get()
       |> case do
-        {:error, {reason, oid}} ->
-          %{errors: %{oid => reason}}
+        {:error, _} = e ->
+          Get.Response.encode(e)
 
-        values ->
-          format_objects(oids, values)
+        objects ->
+          [Enum.map(oids, &elem(&1, 0)), objects]
+          |> Enum.zip()
+          |> Get.Response.encode()
       end
 
     conn
@@ -76,38 +100,22 @@ defmodule Snmp.Plug do
     |> send_resp(200, Jason.encode!(body))
   end
 
-  defp parse_oids(map) do
-    map
-    |> Map.keys()
-    |> Enum.reduce_while({:ok, []}, fn bin, {:ok, acc} ->
-      case OID.parse(bin) do
-        {:ok, oid} -> {:cont, {:ok, [{bin, oid} | acc]}}
-        :error -> {:halt, :error}
-      end
-    end)
-    |> case do
-      :error -> :error
-      {:ok, oids} -> {:ok, Enum.reverse(oids)}
-    end
+  def get_next(conn, %{valid?: false} = req) do
+    body = GetNext.Response.encode(req)
+    send_resp(conn, 400, Jason.encode!(body))
   end
 
-  defp format_objects(oids, values) do
-    [oids, values]
-    |> Enum.zip()
-    |> Enum.reduce(%{errors: %{}, objects: %{}}, fn
-      {{bin, _oid}, :noSuchObject}, acc ->
-        %{acc | errors: Map.put(acc.errors, bin, :noSuchObject)}
+  def get_next(conn, %{oid: oid, limit: limit}) do
+    agent = conn.private[:snmp_agent]
 
-      {{bin, oid}, value}, acc ->
-        %{acc | objects: Map.put(acc.objects, bin, object(oid, value))}
-    end)
-  end
+    body =
+      oid
+      |> agent.stream()
+      |> Enum.take(limit)
+      |> GetNext.Response.encode()
 
-  defp object(oid, value) when is_list(value) do
-    %{oid: OID.to_string(oid), value: to_string(value)}
-  end
-
-  defp object(oid, value) do
-    %{oid: OID.to_string(oid), value: value}
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(200, Jason.encode!(body))
   end
 end
