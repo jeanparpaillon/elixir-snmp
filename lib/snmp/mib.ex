@@ -113,7 +113,7 @@ defmodule Snmp.Mib do
         quote do
           def __default__(_), do: nil
         end
-      ] ++ [gen_mib(env)]
+      ] ++ [gen_mib(env), gen_records(env)]
   end
 
   ###
@@ -249,6 +249,15 @@ defmodule Snmp.Mib do
   defp parse_table(ast, _, _), do: ast
 
   defp parse_table_info({table, infos}, mib, _env) do
+    entry_name =
+      table
+      |> lookup_me(mib)
+      |> lookup_entry_me(mib)
+      |> case do
+        nil -> raise "Could not find any entry matching table #{table}"
+        me(aliasname: name) -> name
+      end
+
     columns =
       mib
       |> mib(:mes)
@@ -282,7 +291,7 @@ defmodule Snmp.Mib do
         cols -> cols
       end
 
-    infos = %{indices: indices, attributes: attributes}
+    infos = %{entry_name: entry_name, indices: indices, attributes: attributes}
 
     quote do
       @table_info {unquote(table), unquote(Macro.escape(infos))}
@@ -362,8 +371,49 @@ defmodule Snmp.Mib do
       end)
   end
 
+  defp gen_records(env) do
+    table_infos = env.module |> Module.get_attribute(:table_info, []) |> Enum.into(%{})
+
+    [
+      quote do
+        require Record
+      end
+    ] ++
+      Enum.map(table_infos, fn {_, %{entry_name: name, attributes: attrs}} ->
+        quote do
+          Record.defrecord(unquote(name), unquote(Enum.map(attrs, &{&1, nil})))
+        end
+      end)
+  end
+
   defp cast_indices_type(asn1_type(bertype: :INTEGER)), do: :integer
   defp cast_indices_type(asn1_type(bertype: :"OCTET STRING")), do: :string
   defp cast_indices_type(asn1_type(bertype: :TimeTicks)), do: :integer
   defp cast_indices_type(asn1_type(bertype: type)), do: type
+
+  defp lookup_me(name, mib) do
+    mib
+    |> mib(:mes)
+    |> Enum.find_value(fn
+      me(aliasname: ^name) = me -> me
+      _ -> false
+    end)
+  end
+
+  defp lookup_entry_me(me(oid: oid), mib) do
+    r_oid = Enum.reverse(oid)
+
+    mib
+    |> mib(:mes)
+    |> Enum.find_value(fn
+      me(oid: oid, entrytype: :table_entry) = me ->
+        case Enum.reverse(oid) do
+          [_ | ^r_oid] -> me
+          _ -> false
+        end
+
+      _ ->
+        false
+    end)
+  end
 end
