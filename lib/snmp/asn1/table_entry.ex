@@ -27,7 +27,7 @@ defmodule Snmp.ASN1.TableEntry do
         Enum.reduce(params, entry, &__cast_param__/2)
       end
 
-      for {:me, _oid, _entrytype, col_name, _asn1_type, _access, _mfa, _imported, _assocList,
+      for {:me, _oid, _entrytype, col_name, _asn1_type, _access, _mfa, _imported, _assoc_list,
            _description, _units} = me <- columns do
         defp __cast_param__({unquote(col_name), value}, acc) do
           entry(acc, [{unquote(col_name), Types.cast(value, unquote(Macro.escape(me)))}])

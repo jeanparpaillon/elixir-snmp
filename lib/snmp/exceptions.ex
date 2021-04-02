@@ -15,11 +15,11 @@ defmodule Snmp.ASN1.TypeError do
 
   def exception(opts) do
     value = Keyword.fetch!(opts, :value)
-    type  = Keyword.fetch!(opts, :type)
+    type = Keyword.fetch!(opts, :type)
     %__MODULE__{value: value, type: type}
   end
 
   def message(%__MODULE__{value: value, type: me(asn1_type: asn1_type(bertype: bertype))}) do
-    "Can not cast `#{inspect value}` into #{bertype}"
+    "Can not cast `#{inspect(value)}` into #{bertype}"
   end
 end

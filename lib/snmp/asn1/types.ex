@@ -18,14 +18,16 @@ defmodule Snmp.ASN1.Types do
   """
   def cast(nil, _), do: nil
 
-  def cast(value, me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER")) = me) when is_atom(value) do
+  def cast(value, me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER")) = me)
+      when is_atom(value) do
     case :snmpa.name_to_oid(value) do
       {:value, value} -> value
       false -> raise TypeError, type: me, value: value
     end
   end
 
-  def cast(value, me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER")) = me) when is_list(value) do
+  def cast(value, me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER")) = me)
+      when is_list(value) do
     if Enum.all?(value, &is_integer/1) do
       value
     else
@@ -34,13 +36,14 @@ defmodule Snmp.ASN1.Types do
   end
 
   def cast(value, me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER")) = me),
-    do: raise TypeError, type: me, value: value
+    do: raise(TypeError, type: me, value: value)
 
-  def cast(value, me(asn1_type: asn1_type(bertype: :"OCTET STRING")) = me) when is_binary(value) do
+  def cast(value, me(asn1_type: asn1_type(bertype: :"OCTET STRING")) = me)
+      when is_binary(value) do
     String.to_charlist(value)
   rescue
     _ ->
-      raise TypeError, type: me, value: value
+      reraise TypeError, [type: me, value: value], __STACKTRACE__
   end
 
   def cast(value, me(asn1_type: asn1_type(bertype: :"OCTET STRING"))) when is_list(value) do
@@ -48,15 +51,16 @@ defmodule Snmp.ASN1.Types do
   end
 
   def cast(value, me(asn1_type: asn1_type(bertype: :"OCTET STRING")) = me),
-    do: raise TypeError, type: me, value: value
+    do: raise(TypeError, type: me, value: value)
 
   def cast(value, me(asn1_type: asn1_type(bertype: :INTEGER))) when is_integer(value) do
     value
   end
 
-  def cast(value, me(asn1_type: asn1_type(bertype: :INTEGER, assocList: assocList)) = me) when is_atom(value) do
-    with {:enum, enum} when is_list(enum) <- {:enum, Keyword.get(assocList, :enums, false)},
-    {:value, value} when is_integer(value) <- {:value, Keyword.get(enum, value)} do
+  def cast(value, me(asn1_type: asn1_type(bertype: :INTEGER, assocList: assoc_list)) = me)
+      when is_atom(value) do
+    with {:enum, enum} when is_list(enum) <- {:enum, Keyword.get(assoc_list, :enums, false)},
+         {:value, value} when is_integer(value) <- {:value, Keyword.get(enum, value)} do
       value
     else
       _ ->
@@ -64,8 +68,8 @@ defmodule Snmp.ASN1.Types do
     end
   end
 
-  def cast(value, typealias) when is_atom(typealias) do
-    cast(value, me_from_alias(typealias))
+  def cast(value, type_alias) when is_atom(type_alias) do
+    cast(value, me_from_alias(type_alias))
   end
 
   def me_from_alias(:integer), do: me(asn1_type: asn1_type(bertype: :INTEGER))
