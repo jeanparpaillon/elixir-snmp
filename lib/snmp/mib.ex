@@ -277,28 +277,26 @@ defmodule Snmp.Mib do
       table_info(infos, :index_types)
       |> Enum.map(&cast_indices_type/1)
 
-    attributes = Enum.map(columns, fn me(aliasname: colname) -> colname end)
-
-    {indices, attributes} =
+    {indices, columns} =
       case indices do
         [key] ->
-          {key, attributes}
+          {key, columns}
 
         keys ->
           # In case of composed index, rename first column as `index`
-          [_ | attributes] = attributes
-          {List.to_tuple(keys), [:index | attributes]}
+          [_ | columns] = columns
+          {List.to_tuple(keys), [me(aliasname: :index) | columns]}
       end
 
     # Insert extra attribute in case there is only one column: one
     # column tuple is not supported by Mnesia
-    attributes =
-      case attributes do
-        [col] -> [col, :"$extra"]
+    columns =
+      case columns do
+        [col] -> [col, me(aliasname: :"$extra")]
         cols -> cols
       end
 
-    {table, %{entry_name: entry_name, indices: indices, attributes: attributes}}
+    {table, %{entry_name: entry_name, indices: indices, columns: columns}}
   end
 
   ###
