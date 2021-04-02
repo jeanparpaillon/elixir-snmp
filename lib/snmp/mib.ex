@@ -379,7 +379,7 @@ defmodule Snmp.Mib do
 
     quote do
       defmodule unquote(mod_name) do
-        use Snmp.Mib.Table, {unquote(table), unquote(infos)}
+        use Snmp.ASN1.TableEntry, {unquote(table), unquote(infos)}
       end
     end
   end
