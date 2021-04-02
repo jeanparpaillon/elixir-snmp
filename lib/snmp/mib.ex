@@ -73,6 +73,8 @@ defmodule Snmp.Mib do
 
     {:ok, mib} = Compiler.mib(name, opts)
 
+    table_infos = Enum.map(mib(mib, :table_infos), &parse_table_info(&1, mib))
+
     [
       quote do
         @instrumentation {unquote(instr_mod), unquote(instr_opts)}
@@ -93,7 +95,12 @@ defmodule Snmp.Mib do
     ] ++
       Enum.map(mib(mib, :asn1_types), &parse_asn1_type/1) ++
       Enum.map(mib(mib, :mes), &parse_me(&1, __CALLER__)) ++
-      Enum.map(mib(mib, :table_infos), &parse_table_info(&1, mib, __CALLER__))
+      Enum.map(table_infos, fn {table, infos} ->
+        quote do
+          @table_info {unquote(table), unquote(Macro.escape(infos))}
+        end
+      end) ++
+      [gen_records(table_infos)]
   end
 
   defmacro __before_compile__(env) do
@@ -113,7 +120,7 @@ defmodule Snmp.Mib do
         quote do
           def __default__(_), do: nil
         end
-      ] ++ [gen_mib(env), gen_records(env)]
+      ] ++ [gen_mib(env)]
   end
 
   ###
@@ -248,7 +255,7 @@ defmodule Snmp.Mib do
 
   defp parse_table(ast, _, _), do: ast
 
-  defp parse_table_info({table, infos}, mib, _env) do
+  defp parse_table_info({table, infos}, mib) do
     entry_name =
       table
       |> lookup_me(mib)
@@ -291,11 +298,7 @@ defmodule Snmp.Mib do
         cols -> cols
       end
 
-    infos = %{entry_name: entry_name, indices: indices, attributes: attributes}
-
-    quote do
-      @table_info {unquote(table), unquote(Macro.escape(infos))}
-    end
+    {table, %{entry_name: entry_name, indices: indices, attributes: attributes}}
   end
 
   ###
@@ -371,9 +374,7 @@ defmodule Snmp.Mib do
       end)
   end
 
-  defp gen_records(env) do
-    table_infos = env.module |> Module.get_attribute(:table_info, []) |> Enum.into(%{})
-
+  defp gen_records(table_infos) do
     [
       quote do
         require Record
