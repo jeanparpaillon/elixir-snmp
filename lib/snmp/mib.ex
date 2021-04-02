@@ -100,7 +100,7 @@ defmodule Snmp.Mib do
           @table_info {unquote(table), unquote(Macro.escape(infos))}
         end
       end) ++
-      [gen_records(table_infos)]
+      Enum.map(table_infos, &gen_table_module(&1, __CALLER__))
   end
 
   defmacro __before_compile__(env) do
@@ -374,17 +374,14 @@ defmodule Snmp.Mib do
       end)
   end
 
-  defp gen_records(table_infos) do
-    [
-      quote do
-        require Record
+  defp gen_table_module({table, infos}, env) do
+    mod_name = Module.concat(env.module, Macro.camelize(Atom.to_string(infos.entry_name)))
+
+    quote do
+      defmodule unquote(mod_name) do
+        use Snmp.Mib.Table, {unquote(table), unquote(infos)}
       end
-    ] ++
-      Enum.map(table_infos, fn {_, %{entry_name: name, attributes: attrs}} ->
-        quote do
-          Record.defrecord(unquote(name), unquote(Enum.map(attrs, &{&1, nil})))
-        end
-      end)
+    end
   end
 
   defp cast_indices_type(asn1_type(bertype: :INTEGER)), do: :integer
