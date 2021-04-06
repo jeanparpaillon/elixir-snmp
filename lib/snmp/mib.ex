@@ -301,7 +301,7 @@ defmodule Snmp.Mib do
        entry_name: entry_name,
        indices: indices,
        columns: columns,
-       defvals: table_info(infos, :defvals)
+       infos: infos
      }}
   end
 
