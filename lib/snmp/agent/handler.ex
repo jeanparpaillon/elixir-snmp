@@ -24,6 +24,7 @@ defmodule Snmp.Agent.Handler do
       defdelegate get(oid_or_oids, ctx), to: Snmp.Agent.Handler
       defdelegate stream(oid), to: Snmp.Agent.Handler
       defdelegate oid_to_name(oid), to: Snmp.Agent.Handler
+      defdelegate table_stream(table_id, start_row), to: Snmp.Agent.Handler
 
       @before_compile Snmp.Agent.Handler
     end
@@ -53,6 +54,14 @@ defmodule Snmp.Agent.Handler do
   @spec stream(:snmp.oid()) :: Enumerable.t()
   def stream(oid) do
     Stream.resource(stream_init(oid), &stream_cont/1, &stream_end/1)
+  end
+
+  @doc """
+  Returns table rows, starting from given row
+  """
+  @spec table_stream(:snmp.oid(), [integer()]) :: Enumerable.t()
+  def table_stream(tid, start) do
+    Stream.resource(table_stream_init(tid, start), &table_stream_cont/1, &table_stream_end/1)
   end
 
   @doc """
@@ -113,6 +122,23 @@ defmodule Snmp.Agent.Handler do
   end
 
   defp stream_end(_oid), do: :ok
+
+  defp table_stream_init(tid, idx), do: fn -> {tid, idx} end
+
+  defp table_stream_cont({tid, idx}) do
+    case :mnesia.snmp_get_next_index(tid, idx) do
+      :endOfTable ->
+        {:halt, :ok}
+
+      {:ok, next} ->
+        case :mnesia.snmp_get_row(tid, next) do
+          {:ok, row} -> {[row], {tid, next}}
+          :undefined -> {:halt, :undefined}
+        end
+    end
+  end
+
+  defp table_stream_end(_), do: :ok
 
   defp to_object({oid, value}), do: to_object(oid, value)
 
