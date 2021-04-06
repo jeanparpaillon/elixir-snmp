@@ -282,25 +282,27 @@ defmodule Snmp.Agent.Config do
 
   defp file_ok(_, true), do: false
 
-  defp file_ok(path, false) do
-    with true <- File.exists?(path),
-         {:ok, terms} when terms != [] <- :file.consult('#{path}') do
-      # File OK
-      true
-    else
-      false ->
-        # File missing
-        false
+  # overwrite=false is not used
+  #
+  # defp file_ok(path, false) do
+  #   with true <- File.exists?(path),
+  #        {:ok, terms} when terms != [] <- :file.consult('#{path}') do
+  #     # File OK
+  #     true
+  #   else
+  #     false ->
+  #       # File missing
+  #       false
 
-      {:ok, []} ->
-        # File empty
-        false
+  #     {:ok, []} ->
+  #       # File empty
+  #       false
 
-      {:error, _} ->
-        # File corrupted
-        false
-    end
-  end
+  #     {:error, _} ->
+  #       # File corrupted
+  #       false
+  #   end
+  # end
 
   defp error(s, err), do: %{s | errors: s.errors ++ [err]}
 

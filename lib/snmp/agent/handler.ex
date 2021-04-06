@@ -50,7 +50,7 @@ defmodule Snmp.Agent.Handler do
   @doc """
   Returns MIB tree as stream
   """
-  @spec stream(:snmp.oid()) :: Stream.t()
+  @spec stream(:snmp.oid()) :: Enumerable.t()
   def stream(oid) do
     Stream.resource(stream_init(oid), &stream_cont/1, &stream_end/1)
   end

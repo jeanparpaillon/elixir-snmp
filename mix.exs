@@ -83,6 +83,9 @@ defmodule Snmp.MixProject do
   end
 
   defp dialyzer do
-    [ignore_warnings: "dialyzer.ignore-warnings"]
+    [
+      ignore_warnings: "dialyzer.ignore-warnings",
+      plt_add_apps: [:mix]
+    ]
   end
 end

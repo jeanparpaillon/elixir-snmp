@@ -73,6 +73,8 @@ defmodule Snmp.Mib do
 
     {:ok, mib} = Compiler.mib(name, opts)
 
+    table_infos = Enum.map(mib(mib, :table_infos), &parse_table_info(&1, mib))
+
     [
       quote do
         @instrumentation {unquote(instr_mod), unquote(instr_opts)}
@@ -93,7 +95,12 @@ defmodule Snmp.Mib do
     ] ++
       Enum.map(mib(mib, :asn1_types), &parse_asn1_type/1) ++
       Enum.map(mib(mib, :mes), &parse_me(&1, __CALLER__)) ++
-      Enum.map(mib(mib, :table_infos), &parse_table_info(&1, mib, __CALLER__))
+      Enum.map(table_infos, fn {table, infos} ->
+        quote do
+          @table_info {unquote(table), unquote(Macro.escape(infos))}
+        end
+      end) ++
+      Enum.map(table_infos, &gen_table_module(&1, __CALLER__))
   end
 
   defmacro __before_compile__(env) do
@@ -113,7 +120,7 @@ defmodule Snmp.Mib do
         quote do
           def __default__(_), do: nil
         end
-      ] ++ [gen_mib(env), gen_records(env)]
+      ] ++ [gen_mib(env)]
   end
 
   ###
@@ -248,7 +255,7 @@ defmodule Snmp.Mib do
 
   defp parse_table(ast, _, _), do: ast
 
-  defp parse_table_info({table, infos}, mib, _env) do
+  defp parse_table_info({table, infos}, mib) do
     entry_name =
       table
       |> lookup_me(mib)
@@ -270,32 +277,26 @@ defmodule Snmp.Mib do
       table_info(infos, :index_types)
       |> Enum.map(&cast_indices_type/1)
 
-    attributes = Enum.map(columns, fn me(aliasname: colname) -> colname end)
-
-    {indices, attributes} =
+    {indices, columns} =
       case indices do
         [key] ->
-          {key, attributes}
+          {key, columns}
 
         keys ->
           # In case of composed index, rename first column as `index`
-          [_ | attributes] = attributes
-          {List.to_tuple(keys), [:index | attributes]}
+          [_ | columns] = columns
+          {List.to_tuple(keys), [me(aliasname: :index) | columns]}
       end
 
     # Insert extra attribute in case there is only one column: one
     # column tuple is not supported by Mnesia
-    attributes =
-      case attributes do
-        [col] -> [col, :"$extra"]
+    columns =
+      case columns do
+        [col] -> [col, me(aliasname: :"$extra")]
         cols -> cols
       end
 
-    infos = %{entry_name: entry_name, indices: indices, attributes: attributes}
-
-    quote do
-      @table_info {unquote(table), unquote(Macro.escape(infos))}
-    end
+    {table, %{entry_name: entry_name, indices: indices, columns: columns}}
   end
 
   ###
@@ -371,19 +372,14 @@ defmodule Snmp.Mib do
       end)
   end
 
-  defp gen_records(env) do
-    table_infos = env.module |> Module.get_attribute(:table_info, []) |> Enum.into(%{})
+  defp gen_table_module({table, infos}, env) do
+    mod_name = Module.concat(env.module, Macro.camelize(Atom.to_string(infos.entry_name)))
 
-    [
-      quote do
-        require Record
+    quote do
+      defmodule unquote(mod_name) do
+        use Snmp.ASN1.TableEntry, {unquote(table), unquote(infos)}
       end
-    ] ++
-      Enum.map(table_infos, fn {_, %{entry_name: name, attributes: attrs}} ->
-        quote do
-          Record.defrecord(unquote(name), unquote(Enum.map(attrs, &{&1, nil})))
-        end
-      end)
+    end
   end
 
   defp cast_indices_type(asn1_type(bertype: :INTEGER)), do: :integer
