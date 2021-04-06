@@ -3,23 +3,27 @@ defmodule Snmp.ASN1.TableEntry do
   Use this module to build table entries creators
   """
   defmacro __using__({table_name, infos}) do
-    %{entry_name: _entry_name, indices: _indices, columns: columns, defvals: defvals} = infos
+    %{indices: _indices, columns: columns, infos: infos} = infos
 
     quote bind_quoted: [
             table_name: table_name,
             columns: Macro.escape(columns),
-            defvals: Macro.escape(defvals)
+            infos: Macro.escape(infos)
           ] do
       require Record
       alias Snmp.ASN1.Types
 
-      attributes =
+      defvals = elem(infos, 2)
+
+      # By convention (?) SNMP tables' index is first field
+      # Do not set default value for index column
+      [{index, _} | attributes] =
         columns
         |> Enum.map(
           &{elem(&1, 3), Keyword.get_lazy(defvals, elem(&1, 3), fn -> Types.default(&1) end)}
         )
 
-      Record.defrecord(:entry, table_name, attributes)
+      Record.defrecord(:entry, table_name, [{index, nil} | attributes])
 
       @doc """
       Returns new record
