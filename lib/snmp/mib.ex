@@ -284,8 +284,8 @@ defmodule Snmp.Mib do
 
         keys ->
           # In case of composed index, rename first column as `index`
-          [_ | columns] = columns
-          {List.to_tuple(keys), [me(aliasname: :index) | columns]}
+          [index | columns] = columns
+          {List.to_tuple(keys), [me(index, aliasname: :index) | columns]}
       end
 
     # Insert extra attribute in case there is only one column: one
@@ -296,7 +296,13 @@ defmodule Snmp.Mib do
         cols -> cols
       end
 
-    {table, %{entry_name: entry_name, indices: indices, columns: columns}}
+    {table,
+     %{
+       entry_name: entry_name,
+       indices: indices,
+       columns: columns,
+       defvals: table_info(infos, :defvals)
+     }}
   end
 
   ###
