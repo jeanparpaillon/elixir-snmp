@@ -11,7 +11,34 @@ defmodule Snmp.ASN1.Types do
     Record.extract(:asn1_type, from_lib: "snmp/include/snmp_types.hrl")
   )
 
+  alias Snmp.ASN1.LoadError
   alias Snmp.ASN1.TypeError
+
+  @doc """
+  Returns elixir-friendly representation of ASN.1 type
+  """
+  def load(nil, _), do: nil
+
+  def load([], me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER"))), do: nil
+
+  def load(value, me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER")) = me)
+      when is_list(value) do
+    value
+    |> :snmpa.oid_to_name()
+    |> case do
+      {:value, value} -> Atom.to_string(value)
+      false -> raise LoadError, type: me, value: value
+    end
+  end
+
+  def load(value, me(asn1_type: asn1_type(bertype: :"OCTET STRING")) = me) do
+    List.to_string(value)
+  rescue
+    ArgumentError ->
+      reraise LoadError, [type: me, value: value], __STACKTRACE__
+  end
+
+  def load(value, _), do: value
 
   @doc """
   Cast value as given MIB entry
