@@ -1,5 +1,6 @@
 defmodule Snmp.Agent.Handler do
   @moduledoc false
+  alias Snmp.ASN1.Types
   alias Snmp.Object
 
   @mandatory_mibs ~w(STANDARD-MIB SNMP-FRAMEWORK-MIB)a
@@ -24,6 +25,7 @@ defmodule Snmp.Agent.Handler do
       defdelegate get(oid_or_oids, ctx), to: Snmp.Agent.Handler
       defdelegate stream(oid), to: Snmp.Agent.Handler
       defdelegate oid_to_name(oid), to: Snmp.Agent.Handler
+      defdelegate table_stream(table_id, start_row), to: Snmp.Agent.Handler
 
       @before_compile Snmp.Agent.Handler
     end
@@ -53,6 +55,14 @@ defmodule Snmp.Agent.Handler do
   @spec stream(:snmp.oid()) :: Enumerable.t()
   def stream(oid) do
     Stream.resource(stream_init(oid), &stream_cont/1, &stream_end/1)
+  end
+
+  @doc """
+  Returns table rows, starting from given row
+  """
+  @spec table_stream(:snmp.oid(), [integer()]) :: Enumerable.t()
+  def table_stream(tid, start) do
+    Stream.resource(table_stream_init(tid, start), &table_stream_cont/1, &table_stream_end/1)
   end
 
   @doc """
@@ -114,11 +124,58 @@ defmodule Snmp.Agent.Handler do
 
   defp stream_end(_oid), do: :ok
 
+  defp table_stream_init(tid, []) do
+    fn -> {tid, :mnesia.snmp_get_next_index(tid, []), table_infos(tid)} end
+  end
+
+  defp table_stream_init(tid, idx) do
+    fn -> {tid, {:ok, idx}, table_infos(tid)} end
+  end
+
+  defp table_stream_cont({_, :endOfTable, _}), do: {:halt, :ok}
+
+  defp table_stream_cont({tid, {:ok, idx}, infos}) do
+    case :mnesia.snmp_get_row(tid, idx) do
+      {:ok, row} ->
+        next = :mnesia.snmp_get_next_index(tid, idx)
+        {[to_row_object(row, infos)], {tid, next, infos}}
+
+      :undefined ->
+        {:halt, :undefined}
+    end
+  end
+
+  defp table_stream_end(_), do: :ok
+
+  defp table_infos(table_name) do
+    table_name
+    |> :mnesia.table_info(:attributes)
+    |> Enum.map(fn attr ->
+      with {:value, oid} <- :snmpa.name_to_oid(attr),
+           {:ok, me} <- :snmpa.me_of(oid) do
+        {attr, me}
+      end
+    end)
+  end
+
   defp to_object({oid, value}), do: to_object(oid, value)
 
   defp to_object(oid, value) do
     me = :snmpa.me_of(oid)
     Object.new(%{oid: oid, name: oid_to_name(oid), value: cast_value(me, value)})
+  end
+
+  defp to_row_object(row, infos) do
+    [_ | values] = Tuple.to_list(row)
+
+    [values, infos]
+    |> Enum.zip()
+    |> Enum.reduce(%{}, fn {value, {name, me}}, acc ->
+      case Types.load(value, me) do
+        nil -> acc
+        casted -> Map.put(acc, name, casted)
+      end
+    end)
   end
 
   defp cast_value(

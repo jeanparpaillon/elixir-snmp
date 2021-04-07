@@ -36,6 +36,7 @@ defmodule Snmp.Plug do
 
   alias Snmp.Plug.Get
   alias Snmp.Plug.GetNext
+  alias Snmp.Plug.GetTable
 
   plug Plug.Parsers, parsers: []
   plug :mib
@@ -67,6 +68,13 @@ defmodule Snmp.Plug do
   def mib(%{path_info: ["getnext"]} = conn, _opts) do
     case conn.method do
       "GET" -> get_next(conn, GetNext.Request.parse(conn))
+      _ -> send_resp(conn, 405, "")
+    end
+  end
+
+  def mib(%{path_info: ["table" | _]} = conn, _opts) do
+    case conn.method do
+      "GET" -> get_table(conn, GetTable.Request.parse(conn))
       _ -> send_resp(conn, 405, "")
     end
   end
@@ -117,5 +125,22 @@ defmodule Snmp.Plug do
     conn
     |> put_resp_content_type("application/json")
     |> send_resp(200, Jason.encode!(body))
+  end
+
+  def get_table(conn, _, %{valid?: false} = req) do
+    body = GetTable.Response.encode(req)
+    send_resp(conn, 400, Jason.encode!(body))
+  end
+
+  def get_table(conn, %{table_name: table_name, start: start, limit: limit}) do
+    agent = conn.private[:snmp_agent]
+
+    body =
+      table_name
+      |> agent.table_stream(start)
+      |> Enum.take(limit)
+      |> GetTable.Response.encode()
+
+    send_resp(conn, 200, Jason.encode!(body))
   end
 end
