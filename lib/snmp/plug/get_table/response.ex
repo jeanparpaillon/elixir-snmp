@@ -22,4 +22,24 @@ defmodule Snmp.Plug.GetTable.Response do
   def encode({:error, {reason, oid}}) do
     %__MODULE__{} |> add_error(:objects, "error #{oid}: #{reason}")
   end
+
+  defimpl Jason.Encoder do
+    def encode(value, opts) do
+      {rows, next} =
+        value.rows
+        |> Enum.reduce({[], :endOfTable}, fn {row, next}, {rows, _} ->
+          {[row | rows], next}
+        end)
+        |> case do
+          {rows, :endOfTable} ->
+            {Enum.reverse(rows), ""}
+
+          {rows, {:ok, next}} ->
+            {Enum.reverse(rows), next |> Enum.map(&"#{&1}") |> Enum.join(",")}
+        end
+
+      %{errors: value.errors, rows: rows, next: next}
+      |> Jason.Encode.map(opts)
+    end
+  end
 end

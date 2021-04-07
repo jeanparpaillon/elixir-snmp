@@ -138,7 +138,7 @@ defmodule Snmp.Agent.Handler do
     case :mnesia.snmp_get_row(tid, idx) do
       {:ok, row} ->
         next = :mnesia.snmp_get_next_index(tid, idx)
-        {[to_row_object(row, infos)], {tid, next, infos}}
+        {[{to_row_object(row, infos), next}], {tid, next, infos}}
 
       :undefined ->
         {:halt, :undefined}
