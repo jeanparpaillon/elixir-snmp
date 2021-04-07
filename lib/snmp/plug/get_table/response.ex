@@ -4,8 +4,6 @@ defmodule Snmp.Plug.GetTable.Response do
   """
   use Snmp.Plug.Schema
 
-  @derive {Jason.Encoder, only: [:errors, :rows]}
-
   alias Snmp.Plug.GetTable
 
   defstruct errors: %{}, rows: [], valid?: true
