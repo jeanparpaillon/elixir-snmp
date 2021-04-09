@@ -19,16 +19,13 @@ defmodule Snmp.ASN1.Types do
   """
   def load(nil, _), do: nil
 
-  def load([], me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER"))), do: nil
-
-  def load(value, me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER")) = me)
+  def load(value, me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER")))
       when is_list(value) do
-    value
-    |> :snmpa.oid_to_name()
-    |> case do
-      {:value, value} -> Atom.to_string(value)
-      false -> raise LoadError, type: me, value: value
-    end
+    value |> Enum.map(& to_string/1) |> Enum.join(".")
+  end
+
+  def load(value, me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER")) = me) do
+    raise LoadError, type: me, value: value
   end
 
   def load(value, me(asn1_type: asn1_type(bertype: :"OCTET STRING")) = me) do
