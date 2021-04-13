@@ -14,6 +14,8 @@ defmodule Snmp.Mib do
 
   Generates `__default__/1`: returns default value from name, or nil
   """
+  alias Snmp.Mib.TableInfo
+
   require Record
 
   Record.defrecord(:mib, Record.extract(:mib, from_lib: "snmp/include/snmp_types.hrl"))
@@ -73,7 +75,7 @@ defmodule Snmp.Mib do
 
     {:ok, mib} = Compiler.mib(name, opts)
 
-    table_infos = Enum.map(mib(mib, :table_infos), &parse_table_info(&1, mib))
+    table_infos = Enum.map(mib(mib, :table_infos), &TableInfo.new(&1, mib))
 
     [
       quote do
@@ -95,7 +97,7 @@ defmodule Snmp.Mib do
     ] ++
       Enum.map(mib(mib, :asn1_types), &parse_asn1_type/1) ++
       Enum.map(mib(mib, :mes), &parse_me(&1, __CALLER__)) ++
-      Enum.map(table_infos, fn {table, infos} ->
+      Enum.map(table_infos, fn %{table_name: table} = infos ->
         quote do
           @table_info {unquote(table), unquote(Macro.escape(infos))}
         end
@@ -255,56 +257,6 @@ defmodule Snmp.Mib do
 
   defp parse_table(ast, _, _), do: ast
 
-  defp parse_table_info({table, infos}, mib) do
-    entry_name =
-      table
-      |> lookup_me(mib)
-      |> lookup_entry_me(mib)
-      |> case do
-        nil -> raise "Could not find any entry matching table #{table}"
-        me(aliasname: name) -> name
-      end
-
-    columns =
-      mib
-      |> mib(:mes)
-      |> Enum.filter(fn
-        me(entrytype: :table_column, assocList: [table_name: ^table]) -> true
-        _ -> false
-      end)
-
-    indices =
-      table_info(infos, :index_types)
-      |> Enum.map(&cast_indices_type/1)
-
-    {indices, columns} =
-      case indices do
-        [key] ->
-          {key, columns}
-
-        keys ->
-          # In case of composed index, rename first column as `index`
-          [index | columns] = columns
-          {List.to_tuple(keys), [me(index, aliasname: :index) | columns]}
-      end
-
-    # Insert extra attribute in case there is only one column: one
-    # column tuple is not supported by Mnesia
-    columns =
-      case columns do
-        [col] -> [col, me(aliasname: :"$extra")]
-        cols -> cols
-      end
-
-    {table,
-     %{
-       entry_name: entry_name,
-       indices: indices,
-       columns: columns,
-       infos: infos
-     }}
-  end
-
   ###
   ### (phase 2) translate module attributes into functions/modules
   ###
@@ -378,7 +330,7 @@ defmodule Snmp.Mib do
       end)
   end
 
-  defp gen_table_module({table, infos}, env) do
+  defp gen_table_module(%{table_name: table} = infos, env) do
     mod_name = Module.concat(env.module, Macro.camelize(Atom.to_string(infos.entry_name)))
 
     quote do
@@ -386,36 +338,5 @@ defmodule Snmp.Mib do
         use Snmp.ASN1.TableEntry, {unquote(table), unquote(infos)}
       end
     end
-  end
-
-  defp cast_indices_type(asn1_type(bertype: :INTEGER)), do: :integer
-  defp cast_indices_type(asn1_type(bertype: :"OCTET STRING")), do: :string
-  defp cast_indices_type(asn1_type(bertype: :TimeTicks)), do: :integer
-  defp cast_indices_type(asn1_type(bertype: type)), do: type
-
-  defp lookup_me(name, mib) do
-    mib
-    |> mib(:mes)
-    |> Enum.find_value(fn
-      me(aliasname: ^name) = me -> me
-      _ -> false
-    end)
-  end
-
-  defp lookup_entry_me(me(oid: oid), mib) do
-    r_oid = Enum.reverse(oid)
-
-    mib
-    |> mib(:mes)
-    |> Enum.find_value(fn
-      me(oid: oid, entrytype: :table_entry) = me ->
-        case Enum.reverse(oid) do
-          [_ | ^r_oid] -> me
-          _ -> false
-        end
-
-      _ ->
-        false
-    end)
   end
 end

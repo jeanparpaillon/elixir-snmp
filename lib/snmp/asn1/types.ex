@@ -138,5 +138,5 @@ defmodule Snmp.ASN1.Types do
 
   def default(me(asn1_type: asn1_type(bertype: :TimeTicks))), do: 0
 
-  def default(me(asn1_type: :undefined)), do: nil
+  def default(me(asn1_type: _)), do: nil
 end
