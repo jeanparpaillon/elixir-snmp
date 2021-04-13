@@ -30,6 +30,11 @@ defmodule Snmp.ASN1.TableEntry do
       """
       def new, do: entry()
 
+      @doc false
+      def new(nil), do: entry()
+
+      def new(e = entry()), do: e
+
       @doc """
            Cast parameters into #{table_name} type
 
@@ -37,7 +42,7 @@ defmodule Snmp.ASN1.TableEntry do
 
            """ <> Enum.join(Enum.map(attributes, &"* `#{elem(&1, 0)}`"), "\n")
       def cast(entry \\ new(), params) do
-        Enum.reduce(params, entry, &__cast_param__/2)
+        Enum.reduce(params, new(entry), &__cast_param__/2)
       end
 
       for {:me, _oid, _entrytype, col_name, _asn1_type, _access, _mfa, _imported, _assoc_list,
