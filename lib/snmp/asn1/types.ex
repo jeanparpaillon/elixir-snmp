@@ -2,6 +2,7 @@ defmodule Snmp.ASN1.Types do
   @moduledoc """
   Functions for dealing with ASN.1 types
   """
+  use Bitwise
   require Record
 
   Record.defrecord(:me, Record.extract(:me, from_lib: "snmp/include/snmp_types.hrl"))
@@ -99,6 +100,32 @@ defmodule Snmp.ASN1.Types do
   def cast(value, me(asn1_type: asn1_type(bertype: :Counter32)))
       when is_integer(value) and value >= 0 do
     value
+  end
+
+  def cast(value, me(asn1_type: asn1_type(bertype: :BITS))) when is_integer(value) do
+    value
+  end
+
+  def cast(value, me(asn1_type: asn1_type(bertype: :BITS, assocList: assoc_list)) = me) when is_list(value) or is_map(value) do
+    kibbles = Keyword.get(assoc_list, :kibbles, [])
+
+    value
+    |> Enum.map(fn
+      {k, v} when is_atom(k) and is_boolean(v) -> {k, v}
+      k when is_atom(k) -> {k, true}
+    end)
+    |> Enum.map(fn {k, v} ->
+      pos = Keyword.fetch!(kibbles, k) - 1
+      mask = (1 <<< pos)
+      {mask, v}
+    end)
+    |> Enum.reduce(0, fn
+      {mask, true}, acc -> acc ||| mask
+      {mask, false}, acc -> acc &&& ~~~mask
+    end)
+  rescue
+    _ ->
+      reraise TypeError, [type: me, value: value], __STACKTRACE__
   end
 
   def cast(value, type_alias) when is_atom(type_alias) do

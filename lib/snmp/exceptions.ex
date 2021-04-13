@@ -22,6 +22,10 @@ defmodule Snmp.ASN1.TypeError do
   def message(%__MODULE__{value: value, type: me(asn1_type: asn1_type(bertype: bertype))}) do
     "Can not cast `#{inspect(value)}` into #{bertype}"
   end
+
+  def message(%__MODULE__{value: value, type: type}) do
+    "Can not cast `#{inspect(value)}` into #{inspect type}"
+  end
 end
 
 defmodule Snmp.ASN1.LoadError do
