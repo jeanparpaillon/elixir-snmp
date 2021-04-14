@@ -47,8 +47,14 @@ defmodule Snmp.Mib.TableInfo do
       mib
       |> mib(:mes)
       |> Enum.filter(fn
-        me(entrytype: :table_column, assocList: [table_name: ^table]) -> true
-        _ -> false
+        me(entrytype: :table_column, assocList: assoc_list) ->
+          case Keyword.get(assoc_list, :table_name) do
+            ^table -> true
+            _ -> false
+          end
+
+        _ ->
+          false
       end)
 
     %{s | columns: columns}

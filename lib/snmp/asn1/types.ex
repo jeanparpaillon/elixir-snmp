@@ -22,7 +22,7 @@ defmodule Snmp.ASN1.Types do
 
   def load(value, me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER")))
       when is_list(value) do
-    value |> Enum.map(& to_string/1) |> Enum.join(".")
+    value |> Enum.map(&to_string/1) |> Enum.join(".")
   end
 
   def load(value, me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER")) = me) do
@@ -82,7 +82,8 @@ defmodule Snmp.ASN1.Types do
     value
   end
 
-  def cast(value, me(asn1_type: asn1_type(bertype: :INTEGER))) when is_integer(value) do
+  def cast(value, me(asn1_type: asn1_type(bertype: :Unsigned32)))
+      when is_integer(value) and value >= 0 do
     value
   end
 
@@ -106,7 +107,8 @@ defmodule Snmp.ASN1.Types do
     value
   end
 
-  def cast(value, me(asn1_type: asn1_type(bertype: :BITS, assocList: assoc_list)) = me) when is_list(value) or is_map(value) do
+  def cast(value, me(asn1_type: asn1_type(bertype: :BITS, assocList: assoc_list)) = me)
+      when is_list(value) or is_map(value) do
     kibbles = Keyword.get(assoc_list, :kibbles, [])
 
     value
@@ -116,7 +118,7 @@ defmodule Snmp.ASN1.Types do
     end)
     |> Enum.map(fn {k, v} ->
       pos = Keyword.fetch!(kibbles, k) - 1
-      mask = (1 <<< pos)
+      mask = 1 <<< pos
       {mask, v}
     end)
     |> Enum.reduce(0, fn
