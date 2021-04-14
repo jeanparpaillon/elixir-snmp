@@ -25,6 +25,8 @@ defmodule Snmp.ASN1.TableEntry do
 
       Record.defrecord(:entry, table_name, [{index, nil} | attributes])
 
+      Record.defrecord(:ms, table_name, Enum.map(columns, &{elem(&1, 3), :_}))
+
       @doc """
       Returns new record
       """
