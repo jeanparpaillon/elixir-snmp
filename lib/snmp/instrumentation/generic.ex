@@ -62,8 +62,8 @@ defmodule Snmp.Instrumentation.Generic do
 
     table_attrs = [
       type: :ordered_set,
-      snmp: [key: table_info[:indices]],
-      attributes: table_info[:columns] |> Enum.map(&elem(&1, 3))
+      snmp: [key: table_info.indices],
+      attributes: table_info.columns |> Enum.map(&elem(&1, 3))
     ]
 
     table_name
