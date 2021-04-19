@@ -1,21 +1,18 @@
 defmodule Snmp.ASN1.TableEntry do
   @moduledoc """
-  Use this module to build table entries creators
+  Use this module to build table entries records
   """
-  @generator :__gen_records__
-  # @generator :__gen_schema__
 
   defmacro __using__({table_name, infos}) do
     %{indices: _indices, columns: columns, infos: infos} = infos
-
-    generator = @generator
 
     quote do
       @table_name unquote(table_name)
       @columns unquote(Macro.escape(columns))
       @infos unquote(Macro.escape(infos))
 
-      @before_compile {unquote(__MODULE__), unquote(generator)}
+      @before_compile {unquote(__MODULE__), :__gen_records__}
+      @before_compile {unquote(__MODULE__), :__gen_casters__}
     end
   end
 
@@ -37,7 +34,11 @@ defmodule Snmp.ASN1.TableEntry do
       Record.defrecord(:entry, @table_name, [{index, nil} | attributes])
 
       Record.defrecord(:ms, @table_name, Enum.map(@columns, &{elem(&1, 3), :_}))
+    end
+  end
 
+  defmacro __gen_casters__(_env) do
+    quote unquote: false do
       @doc """
       Returns new record
       """

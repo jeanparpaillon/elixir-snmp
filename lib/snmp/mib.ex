@@ -56,6 +56,7 @@ defmodule Snmp.Mib do
   @doc false
   defmacro __using__(opts) do
     default_instr_opts = [caller: __CALLER__.module]
+    gen_table_modules = false
 
     {instr_mod, instr_opts} =
       opts
@@ -102,7 +103,11 @@ defmodule Snmp.Mib do
           @table_info {unquote(table), unquote(Macro.escape(infos))}
         end
       end) ++
-      Enum.map(table_infos, &gen_table_module(&1, __CALLER__))
+      if gen_table_modules do
+        Enum.map(table_infos, &gen_table_module(&1, __CALLER__))
+      else
+        []
+      end
   end
 
   defmacro __before_compile__(env) do
