@@ -2,30 +2,41 @@ defmodule Snmp.ASN1.TableEntry do
   @moduledoc """
   Use this module to build table entries creators
   """
+  @generator :__gen_records__
+  # @generator :__gen_schema__
+
   defmacro __using__({table_name, infos}) do
     %{indices: _indices, columns: columns, infos: infos} = infos
 
-    quote bind_quoted: [
-            table_name: table_name,
-            columns: Macro.escape(columns),
-            infos: Macro.escape(infos)
-          ] do
+    generator = @generator
+
+    quote do
+      @table_name unquote(table_name)
+      @columns unquote(Macro.escape(columns))
+      @infos unquote(Macro.escape(infos))
+
+      @before_compile {unquote(__MODULE__), unquote(generator)}
+    end
+  end
+
+  defmacro __gen_records__(_env) do
+    quote unquote: false do
       require Record
       alias Snmp.ASN1.Types
 
-      defvals = elem(infos, 2)
+      defvals = elem(@infos, 2)
 
       # By convention (?) SNMP tables' index is first field
       # Do not set default value for index column
       [{index, _} | attributes] =
-        columns
+        @columns
         |> Enum.map(
           &{elem(&1, 3), Keyword.get_lazy(defvals, elem(&1, 3), fn -> Types.default(&1) end)}
         )
 
-      Record.defrecord(:entry, table_name, [{index, nil} | attributes])
+      Record.defrecord(:entry, @table_name, [{index, nil} | attributes])
 
-      Record.defrecord(:ms, table_name, Enum.map(columns, &{elem(&1, 3), :_}))
+      Record.defrecord(:ms, @table_name, Enum.map(@columns, &{elem(&1, 3), :_}))
 
       @doc """
       Returns new record
@@ -38,7 +49,7 @@ defmodule Snmp.ASN1.TableEntry do
       def new(e = entry()), do: e
 
       @doc """
-           Cast parameters into #{table_name} type
+           Cast parameters into #{@table_name} type
 
            # Parameters
 
@@ -48,7 +59,7 @@ defmodule Snmp.ASN1.TableEntry do
       end
 
       for {:me, _oid, _entrytype, col_name, _asn1_type, _access, _mfa, _imported, _assoc_list,
-           _description, _units} = me <- columns do
+           _description, _units} = me <- @columns do
         defp __cast_param__({unquote(col_name), nil}, acc), do: acc
 
         defp __cast_param__({unquote(col_name), value}, acc) do
