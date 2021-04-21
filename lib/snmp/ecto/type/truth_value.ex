@@ -14,15 +14,15 @@ defmodule Snmp.Ecto.Type.TruthValue do
 
   def cast(_), do: :error
 
-  def load(1), do: true
+  def load(1), do: {:ok, true}
 
-  def load(2), do: false
+  def load(2), do: {:ok, false}
 
   def load(_), do: :error
 
   def dump(true), do: {:ok, 1}
 
-  def dump(false), do: {:ok, false}
+  def dump(false), do: {:ok, 2}
 
   def dump(_), do: :error
 end

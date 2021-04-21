@@ -18,7 +18,7 @@ defmodule Snmp.Ecto.Type.String do
   def cast(_), do: :error
 
   def load(v) do
-    to_string(v)
+    {:ok, to_string(v)}
   rescue
     ArgumentError ->
       :error

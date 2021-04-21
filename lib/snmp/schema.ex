@@ -6,6 +6,8 @@ defmodule Snmp.Schema do
     quote do
       use Ecto.Schema
 
+      import Ecto.Changeset
+
       @primary_key false
     end
   end
