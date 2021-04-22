@@ -11,7 +11,8 @@ defmodule Snmp.Ecto.Type.DateAndTime do
   def cast(%NaiveDateTime{} = dt), do: {:ok, dt}
 
   def cast(v) when is_binary(v) do
-    {:ok, DateTime.from_iso8601(v)}
+    {:ok, dt, 0} = DateTime.from_iso8601(v)
+    {:ok, dt}
   rescue
     _ ->
       :error

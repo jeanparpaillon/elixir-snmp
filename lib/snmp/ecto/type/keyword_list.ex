@@ -17,13 +17,13 @@ defmodule Snmp.Ecto.Type.KeywordList do
 
   def cast(v) do
     kw =
-    v
-    |> to_string()
-    |> String.split(",", trim: true)
+      v
+      |> to_string()
+      |> String.split(",", trim: true)
 
     {:ok, kw}
-    rescue
-      _ -> :error
+  rescue
+    _ -> :error
   end
 
   def load(v) do

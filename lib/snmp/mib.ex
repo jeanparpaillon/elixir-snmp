@@ -101,6 +101,7 @@ defmodule Snmp.Mib do
         Module.register_attribute(__MODULE__, :range, accumulate: true)
         Module.register_attribute(__MODULE__, :default, accumulate: true)
         Module.register_attribute(__MODULE__, :enum, accumulate: true)
+        Module.register_attribute(__MODULE__, :bits, accumulate: true)
         Module.register_attribute(__MODULE__, :table_info, accumulate: true)
         Module.register_attribute(__MODULE__, :ecto_type, accumulate: true)
 
@@ -124,10 +125,12 @@ defmodule Snmp.Mib do
 
   defmacro __before_compile__(env) do
     enums = env.module |> Module.get_attribute(:enum, [])
+    bits = env.module |> Module.get_attribute(:bits, [])
     ranges = env.module |> Module.get_attribute(:range, [])
     defaults = env.module |> Module.get_attribute(:default, [])
 
     Enum.map(enums, &gen_enum(&1, env)) ++
+      Enum.map(bits, &gen_bits(&1, env)) ++
       Enum.map(ranges, &gen_range/1) ++
       [
         quote do
@@ -165,8 +168,10 @@ defmodule Snmp.Mib do
     |> parse_range(me)
     |> parse_default(me)
     |> parse_enum(me, env)
+    |> parse_bits(me, env)
     |> parse_variable(me, env)
     |> parse_table(me, env)
+    |> set_ecto_type(me, env)
   end
 
   defp parse_oid(ast, me(oid: oid, aliasname: name)) do
@@ -246,13 +251,89 @@ defmodule Snmp.Mib do
           [
             quote do
               @enum {unquote(name), unquote(enums)}
-              @ecto_type {unquote(name), unquote(gen_enum_modname(env, name))}
+              @ecto_type {unquote(name), unquote(gen_type_modname(env, name))}
             end
           ]
     end
   end
 
   defp parse_enum(ast, _, _), do: ast
+
+  defp parse_bits(
+         ast,
+         me(
+           imported: false,
+           aliasname: name,
+           asn1_type: asn1_type(bertype: :BITS, assocList: alist)
+         ),
+         _
+       ) do
+    case Keyword.get(alist, :kibbles) do
+      nil ->
+        ast
+
+      kibbles ->
+        ast ++
+          [
+            quote do
+              @bits {unquote(name), unquote(kibbles)}
+            end
+          ]
+    end
+  end
+
+  defp parse_bits(ast, _, _), do: ast
+
+  defp set_ecto_type(
+         ast,
+         me(
+           imported: false,
+           aliasname: name,
+           asn1_type: asn1_type(bertype: :INTEGER, assocList: alist)
+         ),
+         env
+       ) do
+    case Keyword.get(alist, :enums) do
+      nil ->
+        ast
+
+      _enums ->
+        ast ++
+          [
+            quote do
+              @ecto_type {unquote(name), unquote(gen_type_modname(env, name))}
+            end
+          ]
+    end
+  end
+
+  defp set_ecto_type(
+         ast,
+         me(
+           imported: false,
+           aliasname: name,
+           asn1_type: asn1_type(bertype: :BITS, assocList: alist)
+         ),
+         env
+       ) do
+    case Keyword.get(alist, :kibbles) do
+      nil ->
+        ast
+
+      _kibbles ->
+        ast ++
+          [
+            quote do
+              @ecto_type {unquote(name), unquote(gen_type_modname(env, name))}
+            end
+          ]
+    end
+  end
+
+  defp set_ecto_type(ast, _, _) do
+    # _TODO
+    ast
+  end
 
   defp parse_variable(ast, me(aliasname: name, entrytype: :variable) = e, _env) do
     ast ++
@@ -281,9 +362,18 @@ defmodule Snmp.Mib do
   ###
   defp gen_enum({name, values}, env) do
     quote do
-      defmodule unquote(gen_enum_modname(env, Macro.escape(name))) do
+      defmodule unquote(gen_type_modname(env, Macro.escape(name))) do
         @moduledoc false
-        use Snmp.Mib.TextualConvention, mapping: unquote(values)
+        use Snmp.Mib.TextualConvention, mapping: unquote(Macro.escape(values))
+      end
+    end
+  end
+
+  defp gen_bits({name, kibbles}, env) do
+    quote do
+      defmodule unquote(gen_type_modname(env, Macro.escape(name))) do
+        @moduledoc false
+        use Snmp.Mib.Bits, kibbles: unquote(Macro.escape(kibbles))
       end
     end
   end
@@ -294,32 +384,33 @@ defmodule Snmp.Mib do
 
       def init(params) do
         type = Keyword.fetch!(params, :type_of)
-        default = Keyword.fetch!(params, :default)
 
         case Map.get(__mib__(:ecto_types), type) do
           nil -> raise "Invalid type #{type}"
           _ -> :ok
         end
 
-        %{type: type, default: default}
+        Enum.into(params, %{})
       end
 
-      def type(%{type: type}),
+      def type(%{type_of: type}),
         do: apply(__mib__(:ecto_types)[type], :type, [])
 
-      def cast(value, %{type: type}),
+      def cast(nil, %{default: default}), do: {:ok, default}
+
+      def cast(value, %{type_of: type}),
         do: apply(__mib__(:ecto_types)[type], :cast, [value])
 
-      def load(value, _loader, %{type: type}),
+      def load(value, _loader, %{type_of: type}),
         do: apply(__mib__(:ecto_types)[type], :load, [value])
 
-      def dump(value, _dumper, %{type: type}),
+      def dump(value, _dumper, %{type_of: type}),
         do: apply(__mib__(:ecto_types)[type], :dump, [value])
 
-      def embed_as(format, %{type: type}),
+      def embed_as(format, %{type_of: type}),
         do: apply(__mib__(:ecto_types)[type], :embed_as, [format])
 
-      def equal?(value1, value2, %{type: type}),
+      def equal?(value1, value2, %{type_of: type}),
         do: apply(__mib__(:ecto_types)[type], :equal?, [value1, value2])
     end
   end
@@ -402,7 +493,7 @@ defmodule Snmp.Mib do
     end
   end
 
-  defp gen_enum_modname(env, type) do
+  defp gen_type_modname(env, type) do
     type =
       case type |> to_charlist() |> hd() do
         i when i >= ?A and i <= ?Z -> type

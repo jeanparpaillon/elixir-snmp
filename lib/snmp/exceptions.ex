@@ -24,7 +24,7 @@ defmodule Snmp.ASN1.TypeError do
   end
 
   def message(%__MODULE__{value: value, type: type}) do
-    "Can not cast `#{inspect(value)}` into #{inspect type}"
+    "Can not cast `#{inspect(value)}` into #{inspect(type)}"
   end
 end
 

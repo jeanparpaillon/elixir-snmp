@@ -2,6 +2,8 @@ defmodule Snmp.Mib.TextualConvention do
   @moduledoc false
 
   defmacro __using__(mapping: mapping) do
+    mapping = Map.new(mapping)
+
     quote do
       use Ecto.Type
 
@@ -11,8 +13,6 @@ defmodule Snmp.Mib.TextualConvention do
   end
 
   defp def_funs(mapping) do
-    mapping = Map.new(mapping)
-
     Enum.map(mapping, fn {name, value} ->
       quote do
         def value(unquote(name)), do: unquote(value)
@@ -31,7 +31,7 @@ defmodule Snmp.Mib.TextualConvention do
   end
 
   defp def_ecto_funs(mapping) do
-    quote bind_quoted: [mapping: mapping] do
+    quote bind_quoted: [mapping: Macro.escape(mapping)] do
       def type, do: :integer
 
       def embed_as, do: :dump
