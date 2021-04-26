@@ -1,4 +1,5 @@
 defmodule Snmp.Ecto.Type.OID do
+  @moduledoc false
   use Ecto.Type
 
   def type, do: {:array, :integer}

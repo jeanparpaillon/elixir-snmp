@@ -47,7 +47,7 @@ defmodule Snmp.ASN1.TableEntry do
       @doc false
       def new(nil), do: entry()
 
-      def new(e = entry()), do: e
+      def new(entry() = e), do: e
 
       @doc """
            Cast parameters into #{@table_name} type
