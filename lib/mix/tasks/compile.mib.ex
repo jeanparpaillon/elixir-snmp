@@ -36,23 +36,15 @@ defmodule Mix.Tasks.Compile.Mib do
 
   @doc false
   def run(_args) do
-    opts = Options.from_project()
-    opts = %{opts | instrumentation: false}
-
-    opts
-    |> sources()
-    |> sort_dependencies(opts)
-    |> Snmp.Compiler.run(opts)
+    Mix.Project.apps_paths()
     |> case do
-      {:ok, _} ->
-        :ok
+      nil ->
+        do_compile(Mix.Project.get())
 
-      {:error, error} ->
-        error
-        |> List.wrap()
-        |> Enum.each(&error/1)
-
-        {:error, error}
+      apps_paths ->
+        Enum.each(apps_paths, fn {app, path} ->
+          :ok = Mix.Project.in_project(app, path, &do_compile/1)
+        end)
     end
   end
 
@@ -75,6 +67,27 @@ defmodule Mix.Tasks.Compile.Mib do
   ###
   ### Priv
   ###
+  defp do_compile(_project) do
+    opts = Options.from_project()
+    opts = %{opts | instrumentation: false}
+
+    opts
+    |> sources()
+    |> sort_dependencies(opts)
+    |> Snmp.Compiler.run(opts)
+    |> case do
+      {:ok, _} ->
+        :ok
+
+      {:error, error} ->
+        error
+        |> List.wrap()
+        |> Enum.each(&error/1)
+
+        {:error, error}
+    end
+  end
+
   defp info(msg) do
     Mix.shell().info([:bright, @task_name, :normal, " ", msg])
   end

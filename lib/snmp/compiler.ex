@@ -89,15 +89,8 @@ defmodule Snmp.Compiler do
   defp extract_imports(pdata, opts) do
     pdata
     |> pdata(:imports)
-    |> Enum.reduce([], &filter_type_import/2)
+    |> Enum.reduce([], fn {{mib, _imports}, _line}, acc -> [mib | acc] end)
     |> Enum.reduce([], &expand_source_path(&1, &2, opts))
-  end
-
-  defp filter_type_import({{mib, imports}, _line}, acc) do
-    case Enum.filter(imports, &(elem(&1, 0) == :type)) do
-      [] -> acc
-      _types -> [mib | acc]
-    end
   end
 
   defp expand_source_path(mibname, acc, opts) do
