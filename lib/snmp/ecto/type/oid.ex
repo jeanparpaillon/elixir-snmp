@@ -12,6 +12,12 @@ defmodule Snmp.Ecto.Type.OID do
     end
   end
 
+  def cast({mib, name}) when is_atom(mib) and is_atom(name) do
+    {:ok, apply(mib, :__mib__, [:oids])[name]}
+  rescue
+    _ -> :error
+  end
+
   def cast(value) when is_atom(value) do
     value |> to_string() |> Snmp.OID.parse()
   end
