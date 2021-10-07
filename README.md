@@ -31,8 +31,49 @@ The docs can be found at [https://hexdocs.pm/elixir_snmp](https://hexdocs.pm/eli
   elixir code;
 * Describing SNMP agent and its configuration.
 
-### Instrumenting MIB
+### Configure or add directories, add .mib file(s)
+* By default, `elixir_snmp` expects you to have to have non standard .mib files
+in `mibs/*.mib` (they will be compiled into `priv/mibs/*.bin`. Standard MIBs are
+provided with OTP in `<otp>/lib/snmp-<version>/mibs/` and do not need to be
+included. MIB compilation is quite complex: `use Snmp.Mib` (see [Instrumenting MIB below](https://github.com/jeanparpaillon/elixir-snmp#instrumenting-mib))
+is not enough to compile MIB files, and `.mib` files need to be already compiled
+into `*.bin` when compiling elixir code. So `:mib` compiler can be added in the
+list of compilers of the application (see https://github.com/jeanparpaillon/elixir-snmp/blob/master/lib/mix/tasks/compile.mib.ex).
 
+See related config options
+  [here](https://github.com/jeanparpaillon/elixir-snmp/blob/4c37a2d511917bf99029625844666b8ab0f5ac0c/lib/snmp/compiler/options.ex#L3-L4).
+
+### Instrumenting MIB
+* As noted below in [Defining Agent](https://github.com/jeanparpaillon/elixir-snmp#defining-agent), there are two mandatory SNMP mibs. You
+will need to create Elixir Mib modules (not to be confused with .mib files) for
+these, you don't have to define your own instrumentation functions. Remember to
+update the (required) confs values below:
+
+``` elixir
+defmodule MyApp.Mib.Standard do
+  use Snmp.Mib.Standard,
+    otp_app: :my_app,
+    conf: [
+      sysObjectID: ,
+      snmpEnableAuthenTraps: ,
+      sysServices: []
+    ]
+end
+```
+
+``` elixir
+defmodule MyApp.Mib.Framework do
+  use Snmp.Mib.Framework,
+   otp_app: :my_app,
+   conf: [
+     snmpEngineID: ,
+     snmpEngineMaxMessageSize: ,
+     sysObjectID: ,
+     sysServices: ,
+     snmpEnableAuthenTraps:
+   ]
+end
+```
 * Instrument a MIB with generic (mnesia) functions:
 
 ``` elixir
@@ -65,7 +106,7 @@ See `Snmp.Mib` documentation for advanced instructions.
 
 ``` elixir
 defmodule Agent do
-  use Snmp.Agent
+  use Snmp.Agent.Handler, otp_app: :my_app
 
   # Mandatory MIBs
   mib MyApp.Mib.Standard
@@ -105,7 +146,7 @@ config :my_app, Agent,
   port: "SNMP_PORT" |> System.get_env("4000") |> String.to_integer(),
   transports: ["127.0.0.1"],
   security: [
-    [user: "public", access: :public]
+    [user: "public", access: :public],
     [user: "admin", password: "adminpassword", access: [:public, :secure]]
   ]
 ```
