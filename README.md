@@ -32,14 +32,20 @@ The docs can be found at [https://hexdocs.pm/elixir_snmp](https://hexdocs.pm/eli
 * Describing SNMP agent and its configuration.
 
 ### Configure or add directories, add .mib file(s)
-* By default, `elixir_snmp` expects you to have **defined your .mib file(s)** at
-  my_app_root/mibs, and to have my_app_root/priv/mibs in place for `elixir_snmp`
-  to put the compiled mibs. See related config options
+* By default, `elixir_snmp` expects you to have to have non standard .mib files
+in `mibs/*.mib` (they will be compiled into `priv/mibs/*.bin`. Standard MIBs are
+provided with OTP in `<otp>/lib/snmp-<version>/mibs/` and do not need to be
+included. MIB compilation is quite complex: `use Snmp.Mib` (see [Instrumenting MIB below](https://github.com/jeanparpaillon/elixir-snmp#instrumenting-mib))
+is not enough to compile MIB files, and `.mib` files need to be already compiled
+into `*.bin` when compiling elixir code. So `:mib` compiler can be added in the
+list of compilers of the application (see https://github.com/jeanparpaillon/elixir-snmp/blob/master/lib/mix/tasks/compile.mib.ex).
+
+See related config options
   [here](https://github.com/jeanparpaillon/elixir-snmp/blob/4c37a2d511917bf99029625844666b8ab0f5ac0c/lib/snmp/compiler/options.ex#L3-L4).
 
 ### Instrumenting MIB
-* As noted below in [Defining Agent](https://github.com/jeanparpaillon/elixir-snmp#defining-agent), there are two mandatory SNMP agents. You
-will need to create Elixir Mib files (not to be confused with .mib files) for
+* As noted below in [Defining Agent](https://github.com/jeanparpaillon/elixir-snmp#defining-agent), there are two mandatory SNMP mibs. You
+will need to create Elixir Mib modules (not to be confused with .mib files) for
 these, you don't have to define your own instrumentation functions. Remember to
 update the (required) confs values below:
 
