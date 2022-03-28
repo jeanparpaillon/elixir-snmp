@@ -48,7 +48,7 @@ defmodule Snmp.Mib.UserBasedSm do
       access
       |> Vacm.vacmAccess(:sec_level)
       |> case do
-        :noPrivNoAuth ->
+        :noAuthNoPriv ->
           {:usmNoAuthProtocol, '', :usmNoPrivProtocol, ''}
 
         :authNoPriv ->

@@ -38,10 +38,7 @@ provided with OTP in `<otp>/lib/snmp-<version>/mibs/` and do not need to be
 included. MIB compilation is quite complex: `use Snmp.Mib` (see [Instrumenting MIB below](https://github.com/jeanparpaillon/elixir-snmp#instrumenting-mib))
 is not enough to compile MIB files, and `.mib` files need to be already compiled
 into `*.bin` when compiling elixir code. So `:mib` compiler can be added in the
-list of compilers of the application (see https://github.com/jeanparpaillon/elixir-snmp/blob/master/lib/mix/tasks/compile.mib.ex).
-
-See related config options
-  [here](https://github.com/jeanparpaillon/elixir-snmp/blob/4c37a2d511917bf99029625844666b8ab0f5ac0c/lib/snmp/compiler/options.ex#L3-L4).
+list of compilers of the application (see [compile.mib.ex](https://github.com/jeanparpaillon/elixir-snmp/blob/master/lib/mix/tasks/compile.mib.ex)).
 
 ### Instrumenting MIB
 * As noted below in [Defining Agent](https://github.com/jeanparpaillon/elixir-snmp#defining-agent), there are two mandatory SNMP mibs. You
@@ -54,9 +51,9 @@ defmodule MyApp.Mib.Standard do
   use Snmp.Mib.Standard,
     otp_app: :my_app,
     conf: [
-      sysObjectID: ,
-      snmpEnableAuthenTraps: ,
-      sysServices: []
+      sysObjectID: [integer()],
+      snmpEnableAuthenTraps: :enabled | :disabled,
+      sysServices: integer()
     ]
 end
 ```
@@ -66,11 +63,8 @@ defmodule MyApp.Mib.Framework do
   use Snmp.Mib.Framework,
    otp_app: :my_app,
    conf: [
-     snmpEngineID: ,
-     snmpEngineMaxMessageSize: ,
-     sysObjectID: ,
-     sysServices: ,
-     snmpEnableAuthenTraps:
+     snmpEngineID: [integer()],
+     snmpEngineMaxMessageSize: integer(),
    ]
 end
 ```
