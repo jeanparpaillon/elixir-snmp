@@ -17,7 +17,7 @@ The package can be installed by adding `elixir_snmp` to your list of dependencie
 ``` elixir
 def deps do
   [
-    {:elixir_snmp, "~> 0.1.0"}
+    {:elixir_snmp, "~> 0.2.1"}
   ]
 end
 ```
