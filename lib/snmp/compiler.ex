@@ -44,7 +44,7 @@ defmodule Snmp.Compiler do
     src = find_mib(opts, "#{name}" <> ".mib")
 
     with {:ok, [dest]} <- run([src], opts) do
-      :snmpc_misc.read_mib('#{dest}')
+      :snmpc_misc.read_mib(~c"#{dest}")
     end
   end
 
@@ -79,7 +79,7 @@ defmodule Snmp.Compiler do
     _ = ensure_destdir(opts)
 
     src = Path.join(Path.dirname(src), Path.basename(src, ".mib"))
-    :snmpc.compile('#{src}', Options.to_snmpc(opts))
+    :snmpc.compile(~c"#{src}", Options.to_snmpc(opts))
   end
 
   defp ensure_destdir(opts) do

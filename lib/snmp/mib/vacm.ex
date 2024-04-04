@@ -12,7 +12,13 @@ defmodule Snmp.Mib.Vacm do
   defrecord :vacmSecurityToGroup, [:sec_model, :sec_name, :group_name]
 
   @default_sec_models [:v1, :v2c, :usm]
-  @default_access [prefix: '', match: :exact, read_view: '', write_view: '', notify_view: '']
+  @default_access [
+    prefix: ~c"",
+    match: :exact,
+    read_view: ~c"",
+    write_view: ~c"",
+    notify_view: ~c""
+  ]
   defrecord :vacmAccess, [
     :group_name,
     :prefix,
@@ -91,9 +97,9 @@ defmodule Snmp.Mib.Vacm do
           sec_model: &1,
           sec_level: level,
           match: :exact,
-          read_view: Keyword.get(attrs, :read_view, ''),
-          write_view: Keyword.get(attrs, :write_view, ''),
-          notify_view: Keyword.get(attrs, :notify_view, '')
+          read_view: Keyword.get(attrs, :read_view, ~c""),
+          write_view: Keyword.get(attrs, :write_view, ~c""),
+          notify_view: Keyword.get(attrs, :notify_view, ~c"")
         )
       )
 

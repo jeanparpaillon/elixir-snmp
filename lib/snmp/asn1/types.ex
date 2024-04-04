@@ -150,7 +150,7 @@ defmodule Snmp.ASN1.Types do
   """
   def default(me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER"))), do: []
 
-  def default(me(asn1_type: asn1_type(bertype: :"OCTET STRING"))), do: ''
+  def default(me(asn1_type: asn1_type(bertype: :"OCTET STRING"))), do: ~c""
 
   def default(me(asn1_type: asn1_type(bertype: :INTEGER, assocList: assoc_list))) do
     case Keyword.get(assoc_list, :enums, false) do

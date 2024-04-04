@@ -22,7 +22,7 @@ defmodule Snmp.Compiler.Options do
       |> Enum.map(&to_charlist/1)
 
     snmpc_opts = [
-      {:outdir, '#{opts.destdir}'},
+      {:outdir, ~c"#{opts.destdir}"},
       {:i, includes},
       {:il, opts.includes_lib},
       :imports | opts.extra_opts

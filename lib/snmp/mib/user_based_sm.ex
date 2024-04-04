@@ -49,12 +49,12 @@ defmodule Snmp.Mib.UserBasedSm do
       |> Vacm.vacmAccess(:sec_level)
       |> case do
         :noAuthNoPriv ->
-          {:usmNoAuthProtocol, '', :usmNoPrivProtocol, ''}
+          {:usmNoAuthProtocol, ~c"", :usmNoPrivProtocol, ~c""}
 
         :authNoPriv ->
           password = Keyword.fetch!(attrs, :password)
           auth_key = :snmp.passwd2localized_key(:md5, to_charlist(password), engine_id)
-          {:usmHMACMD5AuthProtocol, auth_key, :usmNoPrivProtocol, ''}
+          {:usmHMACMD5AuthProtocol, auth_key, :usmNoPrivProtocol, ~c""}
 
         :authPriv ->
           password = Keyword.fetch!(attrs, :password)
@@ -68,12 +68,12 @@ defmodule Snmp.Mib.UserBasedSm do
       to_charlist(sec_name),
       :zeroDotZero,
       auth_p,
-      '',
-      '',
+      ~c"",
+      ~c"",
       priv_p,
-      '',
-      '',
-      '',
+      ~c"",
+      ~c"",
+      ~c"",
       auth_key,
       priv_key
     }

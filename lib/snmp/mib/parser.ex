@@ -79,7 +79,7 @@ defmodule Snmp.Mib.Parser do
     snmp_version = Process.put(:snmp_version, 2)
 
     ret =
-      case :snmpc_tok.start_link(@reserved_words, file: '#{path}', forget_stringdata: true) do
+      case :snmpc_tok.start_link(@reserved_words, file: ~c"#{path}", forget_stringdata: true) do
         {:error, err} ->
           {:error, err}
 

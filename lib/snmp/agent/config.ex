@@ -13,7 +13,7 @@ defmodule Snmp.Agent.Config do
 
   @default_mibs ~w(STANDARD-MIB SNMPv2 SNMP-FRAMEWORK-MIB SNMP-MPD-MIB)a
 
-  @default_context ''
+  @default_context ~c""
 
   @default_port 4000
 
@@ -275,7 +275,7 @@ defmodule Snmp.Agent.Config do
     if file_ok(path, overwrite) do
       :ok
     else
-      data = Enum.map(terms, &:io_lib.format('~tp.~n', [&1]))
+      data = Enum.map(terms, &:io_lib.format(~c"~tp.~n", [&1]))
       File.write(path, data)
     end
   end

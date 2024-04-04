@@ -7,8 +7,8 @@ defmodule Snmp.Mib.Community do
     name = Keyword.fetch!(attrs, :name)
     index = Keyword.get(attrs, :index, name)
     sec_name = Keyword.fetch!(attrs, :sec_name)
-    ctx_name = Keyword.get(attrs, :context_name, '')
-    transport_tag = Keyword.get(attrs, :transport_tag, '')
+    ctx_name = Keyword.get(attrs, :context_name, ~c"")
+    transport_tag = Keyword.get(attrs, :transport_tag, ~c"")
     {index, name, sec_name, ctx_name, transport_tag}
   end
 end

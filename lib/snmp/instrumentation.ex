@@ -63,9 +63,7 @@ defmodule Snmp.Instrumentation do
 
         err =
           """
-          Following instrumentation functions are missing for module #{env.module} (mib #{
-            mib_name
-          }):
+          Following instrumentation functions are missing for module #{env.module} (mib #{mib_name}):
           """ <> (missing |> Enum.map(&"\t* #{elem(&1, 0)}: #{elem(&1, 1)}") |> Enum.join("\n"))
 
         Mix.shell().error(err)

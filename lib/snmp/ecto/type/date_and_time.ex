@@ -27,9 +27,7 @@ defmodule Snmp.Ecto.Type.DateAndTime do
       ) do
     tz = format_tz(dir, hour_shift, min_shift)
 
-    "#{pad_int(year, 4)}-#{pad_int(month, 2)}-#{pad_int(day, 2)}T#{pad_int(hour, 2)}:#{
-      pad_int(minute, 2)
-    }:#{pad_int(second, 2)}.#{decisecond}#{tz}"
+    "#{pad_int(year, 4)}-#{pad_int(month, 2)}-#{pad_int(day, 2)}T#{pad_int(hour, 2)}:#{pad_int(minute, 2)}:#{pad_int(second, 2)}.#{decisecond}#{tz}"
     |> DateTime.from_iso8601()
     |> case do
       {:ok, dt, _} -> {:ok, dt}
@@ -41,9 +39,7 @@ defmodule Snmp.Ecto.Type.DateAndTime do
         <<year::integer-size(16), month::integer, day::integer, hour::integer, minute::integer,
           second::integer, decisecond::integer>>
       ) do
-    "#{pad_int(year, 4)}-#{pad_int(month, 2)}-#{pad_int(day, 2)}T#{pad_int(hour, 2)}:#{
-      pad_int(minute, 2)
-    }:#{pad_int(second, 2)}.#{decisecond}"
+    "#{pad_int(year, 4)}-#{pad_int(month, 2)}-#{pad_int(day, 2)}T#{pad_int(hour, 2)}:#{pad_int(minute, 2)}:#{pad_int(second, 2)}.#{decisecond}"
     |> NaiveDateTime.from_iso8601()
     |> case do
       {:ok, dt} -> {:ok, dt}
