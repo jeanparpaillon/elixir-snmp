@@ -41,7 +41,7 @@ defmodule Snmp.Agent.Writer do
 
   defp build_mibs(mib_mods) do
     mib_mods
-    |> Enum.map(&{apply(&1, :__mib__, [:name]), &1})
+    |> Enum.map(&{&1.__mib__(:name), &1})
     |> Enum.into(%{})
   end
 end

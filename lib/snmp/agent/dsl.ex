@@ -202,8 +202,7 @@ defmodule Snmp.Agent.DSL do
 
     parts =
       List.wrap(parents)
-      |> Enum.map(&"`#{&1}`")
-      |> Enum.join(", ")
+      |> Enum.map_join(", ", &"`#{&1}`")
 
     "Invalid agent definition: #{ref} must only be used within #{parts}"
   end

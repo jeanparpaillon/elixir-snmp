@@ -60,7 +60,7 @@ defmodule Snmp.Agent.Config do
   @spec build(module) :: {:ok, t()} | {:error, [term()]}
   def build(handler) do
     if Kernel.function_exported?(handler, :__agent__, 1) do
-      %{errors: [], handler: handler, otp_app: apply(handler, :__agent__, [:app])}
+      %{errors: [], handler: handler, otp_app: handler.__agent__(:app)}
       |> do_build()
       |> case do
         %{errors: []} = s -> {:ok, Map.drop(s, [:errors])}
@@ -141,10 +141,7 @@ defmodule Snmp.Agent.Config do
         transports -> Enum.map(transports, &Transport.config/1)
       end
 
-    framework_conf =
-      s
-      |> mib_mod(:"SNMP-FRAMEWORK-MIB")
-      |> apply(:__mib__, [:config])
+    framework_conf = mib_mod(s, :"SNMP-FRAMEWORK-MIB").__mib__(:config)
 
     agent_conf =
       [
@@ -158,13 +155,8 @@ defmodule Snmp.Agent.Config do
   end
 
   defp standard_conf(s) do
-    standard_conf =
-      s
-      |> mib_mod(:"STANDARD-MIB")
-      |> apply(:__mib__, [:config])
-
-    s
-    |> Map.put(:standard_conf, standard_conf)
+    standard_conf = mib_mod(s, :"STANDARD-MIB").__mib__(:config)
+    Map.put(s, :standard_conf, standard_conf)
   end
 
   defp context_conf(s) do
@@ -177,8 +169,7 @@ defmodule Snmp.Agent.Config do
 
   defp community_conf(s) do
     communities =
-      s.handler
-      |> apply(:__agent__, [:security_groups])
+      s.handler.__agent__(:security_groups)
       |> Enum.reduce(MapSet.new(), fn
         {:vacmSecurityToGroup, :v1, sec_name, _}, acc -> MapSet.put(acc, sec_name)
         {:vacmSecurityToGroup, :v2c, sec_name, _}, acc -> MapSet.put(acc, sec_name)
@@ -193,9 +184,9 @@ defmodule Snmp.Agent.Config do
 
   defp vacm_conf(s) do
     vacm_conf =
-      apply(s.handler, :__agent__, [:accesses]) ++
-        apply(s.handler, :__agent__, [:security_groups]) ++
-        apply(s.handler, :__agent__, [:views])
+      s.handler.__agent__(:accesses) ++
+        s.handler.__agent__(:security_groups) ++
+        s.handler.__agent__(:views)
 
     s
     |> Map.put(:vacm_conf, vacm_conf)
@@ -203,14 +194,11 @@ defmodule Snmp.Agent.Config do
 
   defp usm_conf(s) do
     engine_id =
-      s
-      |> mib_mod(:"SNMP-FRAMEWORK-MIB")
-      |> apply(:__mib__, [:config])
+      mib_mod(s, :"SNMP-FRAMEWORK-MIB").__mib__(:config)
       |> Keyword.get(:snmpEngineID)
 
     accesses =
-      s.handler
-      |> apply(:__agent__, [:accesses])
+      s.handler.__agent__(:accesses)
       |> Enum.reduce(%{}, fn access, acc ->
         name = :"#{Vacm.vacmAccess(access, :group_name)}"
         Map.put(acc, name, access)
@@ -311,16 +299,14 @@ defmodule Snmp.Agent.Config do
   defp when_valid?(s, _fun), do: s
 
   defp mib_mod(s, name) do
-    s.handler
-    |> apply(:__agent__, [:mibs])
+    s.handler.__agent__.(:mibs)
     |> Map.get(name)
   end
 
   defp initial_mibs(s) do
     mibs_paths = mibs_paths(s)
 
-    s.handler
-    |> apply(:__agent__, [:mibs])
+    s.handler.__agent__(:mibs)
     |> Enum.reject(&(elem(&1, 0) in @default_mibs))
     |> Enum.map(fn {name, _module} ->
       find_path(mibs_paths, "#{name}.bin")

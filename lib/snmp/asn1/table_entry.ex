@@ -54,7 +54,7 @@ defmodule Snmp.ASN1.TableEntry do
 
            # Parameters
 
-           """ <> Enum.join(Enum.map(attributes, &"* `#{elem(&1, 0)}`"), "\n")
+           """ <> Enum.map(attributes, "\n", &"* `#{elem(&1, 0)}`")
       def cast(entry \\ new(), params) do
         Enum.reduce(params, new(entry), &__cast_param__/2)
       end

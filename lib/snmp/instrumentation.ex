@@ -45,13 +45,11 @@ defmodule Snmp.Instrumentation do
   @doc false
   def __after_compile__(env, _bytecode) do
     missing_varfuns =
-      env.module
-      |> apply(:__mib__, [:varfuns])
+      env.module.__mib__(:varfuns)
       |> Enum.reject(&Module.defines?(env.module, &1, :def))
 
     missing_tablefuns =
-      env.module
-      |> apply(:__mib__, [:tablefuns])
+      env.module.__mib__(:tablefuns)
       |> Enum.reject(&Module.defines?(env.module, &1, :def))
 
     case missing_varfuns ++ missing_tablefuns do
@@ -59,12 +57,12 @@ defmodule Snmp.Instrumentation do
         :ok
 
       missing ->
-        mib_name = apply(env.module, :__mib__, [:name])
+        mib_name = env.module.__mib__(:name)
 
         err =
           """
           Following instrumentation functions are missing for module #{env.module} (mib #{mib_name}):
-          """ <> (missing |> Enum.map(&"\t* #{elem(&1, 0)}: #{elem(&1, 1)}") |> Enum.join("\n"))
+          """ <> (missing |> Enum.map_join("\n", &"\t* #{elem(&1, 0)}: #{elem(&1, 1)}"))
 
         Mix.shell().error(err)
         Mix.raise("Error compiling #{env.module}")
@@ -83,7 +81,7 @@ defmodule Snmp.Instrumentation do
     end
   end
 
-  defp gen_impl() do
+  defp gen_impl do
     quote do
       @after_compile Snmp.Instrumentation
     end
@@ -102,16 +100,16 @@ defmodule Snmp.Instrumentation do
     |> if_not_defined(
       {env.module, {varname, 1}},
       quote bind_quoted: [varname: varname] do
-        extra = apply(@instr_mod, :build_extra, [varname, @instr_opts])
+        extra = @instr_mod.build_extra(varname, @instr_opts)
 
         def unquote(Macro.escape(varname))(op),
-          do: apply(@instr_mod, :variable_func, [op, unquote(extra)])
+          do: @instr_mod.variable_func(op, unquote(extra))
       end
     )
     |> if_not_defined(
       {env.module, {varname, 2}},
       quote bind_quoted: [varname: varname] do
-        extra = apply(@instr_mod, :build_extra, [varname, @instr_opts])
+        extra = @instr_mod.build_extra(varname, @instr_opts)
 
         def unquote(Macro.escape(varname))(op, val),
           do: apply(@instr_mod, op, [val, unquote(extra)])
@@ -124,19 +122,19 @@ defmodule Snmp.Instrumentation do
     |> if_not_defined(
       {env.module, {tablename, 1}},
       quote bind_quoted: [tablename: tablename] do
-        extra = apply(@instr_mod, :build_extra, [tablename, @instr_opts])
+        extra = @instr_mod.build_extra(tablename, @instr_opts)
 
         def unquote(Macro.escape(tablename))(op),
-          do: apply(@instr_mod, :table_func, [op, unquote(extra)])
+          do: @instr_mod.table_func(op, unquote(extra))
       end
     )
     |> if_not_defined(
       {env.module, {tablename, 3}},
       quote bind_quoted: [tablename: tablename] do
-        extra = apply(@instr_mod, :build_extra, [tablename, @instr_opts])
+        extra = @instr_mod.build_extra(tablename, @instr_opts)
 
         def unquote(Macro.escape(tablename))(op, row_index, cols),
-          do: apply(@instr_mod, :table_func, [op, row_index, cols, unquote(extra)])
+          do: @instr_mod.table_func(op, row_index, cols, unquote(extra))
       end
     )
   end

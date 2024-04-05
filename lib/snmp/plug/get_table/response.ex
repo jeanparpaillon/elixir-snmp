@@ -33,7 +33,7 @@ defmodule Snmp.Plug.GetTable.Response do
             {Enum.reverse(rows), ""}
 
           {rows, {:ok, next}} ->
-            {Enum.reverse(rows), next |> Enum.map(&"#{&1}") |> Enum.join(",")}
+            {Enum.reverse(rows), next |> Enum.map_join(",", &"#{&1}")}
         end
 
       %{errors: value.errors, rows: rows, next: next}

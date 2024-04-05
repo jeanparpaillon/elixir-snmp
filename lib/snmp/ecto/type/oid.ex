@@ -13,7 +13,7 @@ defmodule Snmp.Ecto.Type.OID do
   end
 
   def cast({mib, name}) when is_atom(mib) and is_atom(name) do
-    {:ok, apply(mib, :__mib__, [:oids])[name]}
+    {:ok, mib.__mib__(:oids)[name]}
   rescue
     _ -> :error
   end

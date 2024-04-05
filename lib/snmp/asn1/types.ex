@@ -2,7 +2,7 @@ defmodule Snmp.ASN1.Types do
   @moduledoc """
   Functions for dealing with ASN.1 types
   """
-  use Bitwise
+  import Bitwise
   require Record
 
   Record.defrecord(:me, Record.extract(:me, from_lib: "snmp/include/snmp_types.hrl"))
@@ -22,7 +22,7 @@ defmodule Snmp.ASN1.Types do
 
   def load(value, me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER")))
       when is_list(value) do
-    value |> Enum.map(&to_string/1) |> Enum.join(".")
+    value |> Enum.map_join(".", &to_string/1)
   end
 
   def load(value, me(asn1_type: asn1_type(bertype: :"OBJECT IDENTIFIER")) = me) do

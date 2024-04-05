@@ -58,7 +58,7 @@ defmodule Snmp.Instrumentation.Generic do
   defp create_mnesia_table(extra) do
     {table_name, _} = Keyword.get(extra, :namedb)
     caller = Keyword.fetch!(extra, :caller)
-    table_info = apply(caller, :__mib__, [:table_infos])[table_name]
+    table_info = caller.__mib__(:table_infos)[table_name]
 
     table_attrs = [
       type: :ordered_set,

@@ -36,7 +36,7 @@ defmodule Snmp.Agent.Handler do
       env.module
       |> Module.get_attribute(:mib, [])
       |> Enum.map(fn [module: mod] ->
-        apply(mod, :__mib__, [:name])
+        mod.__mib__(:name)
       end)
 
     (@mandatory_mibs -- mibs)

@@ -394,24 +394,24 @@ defmodule Snmp.Mib do
       end
 
       def type(%{type_of: type}),
-        do: apply(__mib__(:ecto_types)[type], :type, [])
+        do: __mib__(:ecto_types)[type].type()
 
       def cast(nil, %{default: default}), do: {:ok, default}
 
       def cast(value, %{type_of: type}),
-        do: apply(__mib__(:ecto_types)[type], :cast, [value])
+        do: __mib__(:ecto_types)[type].cast(value)
 
       def load(value, _loader, %{type_of: type}),
-        do: apply(__mib__(:ecto_types)[type], :load, [value])
+        do: __mib__(:ecto_types)[type].load(value)
 
       def dump(value, _dumper, %{type_of: type}),
-        do: apply(__mib__(:ecto_types)[type], :dump, [value])
+        do: __mib__(:ecto_types)[type].dump(value)
 
       def embed_as(format, %{type_of: type}),
-        do: apply(__mib__(:ecto_types)[type], :embed_as, [format])
+        do: __mib__(:ecto_types)[type].embed_as(format)
 
       def equal?(value1, value2, %{type_of: type}),
-        do: apply(__mib__(:ecto_types)[type], :equal?, [value1, value2])
+        do: __mib__(:ecto_types)[type].equal?(value1, value2)
     end
   end
 

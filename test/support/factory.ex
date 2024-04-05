@@ -19,7 +19,7 @@ defmodule Snmp.Test.Factory do
     end
   end
 
-  def gen_t_domain() do
+  def gen_t_domain do
     gen all(
           domain <-
             one_of([
@@ -31,7 +31,7 @@ defmodule Snmp.Test.Factory do
     end
   end
 
-  def gen_addr() do
+  def gen_addr do
     gen all(
           addr <-
             one_of([
@@ -43,7 +43,7 @@ defmodule Snmp.Test.Factory do
     end
   end
 
-  def gen_ip_addr() do
+  def gen_ip_addr do
     gen all(
           addr <-
             one_of([
@@ -58,19 +58,19 @@ defmodule Snmp.Test.Factory do
     end
   end
 
-  def gen_port() do
+  def gen_port do
     gen all(port <- integer(0..65_535)) do
       port
     end
   end
 
-  def gen_e_addr() do
+  def gen_e_addr do
     gen all(e_addr <- tuple({gen_ip_addr(), gen_port_info()})) do
       e_addr
     end
   end
 
-  def gen_port_info() do
+  def gen_port_info do
     gen all(
           info <-
             one_of([
@@ -84,7 +84,7 @@ defmodule Snmp.Test.Factory do
     end
   end
 
-  def gen_port_range() do
+  def gen_port_range do
     gen all(
           min <- integer(0..65_535),
           max <- integer((min + 1)..65_535)
@@ -93,7 +93,7 @@ defmodule Snmp.Test.Factory do
     end
   end
 
-  def gen_t_kind() do
+  def gen_t_kind do
     gen all(kind <- member_of([:req_responder, :trap_sender])) do
       kind
     end
