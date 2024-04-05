@@ -36,7 +36,7 @@ defmodule Snmp.MixProject do
     [
       {:stream_data, "~> 0.5", only: [:test]},
       {:ex_doc, "~> 0.23", only: [:docs], runtime: false},
-      {:dialyxir, "1.0.0", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.4", only: [:dev, :test], runtime: false},
       {:plug, "~> 1.11"},
       {:jason, ">= 0.0.0"},
@@ -85,8 +85,10 @@ defmodule Snmp.MixProject do
 
   defp dialyzer do
     [
-      ignore_warnings: "dialyzer.ignore-warnings",
-      plt_add_apps: [:mix]
+      plt_add_apps: [:mix],
+      plt_core_path: "priv/plts",
+      plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
+      ignore_warnings: ".dialyzer_ignore.exs"
     ]
   end
 end
